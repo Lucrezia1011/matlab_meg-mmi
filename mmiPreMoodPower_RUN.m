@@ -250,7 +250,7 @@ Te = zeros(size(gridall));
 Tesum = zeros(size(gridall));
 
 param_list = cell(1,15);
-for nn = 1:15
+for nn = 1:14
     n = num2str(nn);
     if size(n,2) == 1
         n = ['00',n];
@@ -263,7 +263,7 @@ end
 cd([datapath,'/lme_mood'])
 
 X = zeros(nnz(gridall),1);
-for nn = 1:15
+for nn = 1:14
     opts = detectImportOptions(['inds_',param_list{nn},'.csv']);
     Xv = readtable(['inds_',param_list{nn},'.csv'],opts);
     X((nn-1)*1000+1:(nn-1)*1000+size(Xv,1)) = Xv.tStat;
@@ -274,7 +274,7 @@ Tmood(gridall==1) = X;
 cd([datapath,'/lme_E_sum'])
 
 X = zeros(nnz(gridall),1);
-for nn = 1:15
+for nn = 1:14
     opts = detectImportOptions(['inds_',param_list{nn},'.csv']);
     Xv = readtable(['inds_',param_list{nn},'.csv'],opts);
     X((nn-1)*1000+1:(nn-1)*1000+size(Xv,1)) = Xv.tStat;
@@ -287,7 +287,7 @@ cd([datapath,'/lme_E'])
 
 X = zeros(nnz(gridall),1);
 pV =  zeros(nnz(gridall),1);
-for nn = 1:15
+for nn = 1:14
     opts = detectImportOptions(['inds_',param_list{nn},'.csv']);
     Xv = readtable(['inds_',param_list{nn},'.csv'],opts);
     X((nn-1)*1000+1:(nn-1)*1000+size(Xv,1)) = Xv.tStat;
@@ -315,7 +315,7 @@ N = nnz(p'<0.05./(nnz(gridall):-1:1));
 title(sprintf('E: p-value of %.0f voxels < 0.05 (FDR)',N))
 %%
 
-for p = 2% 1:3
+for p =  2:3
     sourceant =[];
 
     switch p
@@ -339,7 +339,7 @@ sourceout_Int.pow(~sourceout_Int.inside) = 0;
 sourceout_Int.coordsys = 'mni';
 
 
-crang = [2.5 5];
+crang = [2 5];
 cfg = [];
 cfg.method        = 'ortho'; %'ortho'
 if max(sourceout_Int.pow(:)) > -min(sourceout_Int.pow(:))
@@ -358,6 +358,7 @@ ft_sourceplot(cfg, sourceout_Int);
 title(sprintf('%s : %.0f-%.0fHz\npeak t-value %.1f',...
     fit_parameter,freql(1),freql(2),max(abs(sourceant.pow(:)))))
 
+saveas(gcf,sprintf('~/matlab/figures/%s_gamma_slice.png',fit_parameter))
 % saveas(gcf,sprintf('~/matlab/figures/ELTAgamma_peak1.png'))
 end
 

@@ -338,12 +338,12 @@ writetable(ltv_cue,[outpath,'/latent_vars_cue.csv']);
 %%
 aal_labels = readcell('~/labels_AAL116_MNIv4.csv');
 
-cd /data/MBDU/MEG_MMI3/results/mmiTrial_aal_prep_mu5max/latent_vars_new
-meg = dlmread('meg_trials_evoked_cue.txt');
-meg = reshape(meg,[360,116,size(meg,2)]);
-
-opts = detectImportOptions('latent_vars_evoked_cue.csv');
-X = readtable('latent_vars_evoked_cue.csv',opts);
+cd /data/MBDU/MEG_MMI3/results/mmiTrial_aal/
+% meg = dlmread('meg_trials_evoked_cue.txt');
+% meg = reshape(meg,[360,116,size(meg,2)]);
+meg = Y;
+% opts = detectImportOptions('latent_vars_evoked_cue.csv');
+% X = readtable('latent_vars_evoked_cue.csv',opts);
 time = linspace(-.2,1,360);
 
 figure; 
@@ -352,28 +352,28 @@ subplot(221)
 plot(time,mean(meg(:,91:end,:),3))
 hold on; 
 fill([.25 .4 .4 .25],[-1 -1 1 1]*7e-12,[0 0 1],'facealpha',0.1,'edgecolor','none')
-ylim([-1 1]*7e-12);  xlim([-.2 1]);
+ylim([-1 1]*0.5);  xlim([-.2 1]);
 xlabel('time (s)'); ylabel('average evoked response (T)')
 title('cerebellum')
 subplot(222)
 plot(time,mean(meg(:,43:54,:),3))
 hold on; 
 fill([.25 .4 .4 .25],[-1 -1 1 1]*7e-12,[0 0 1],'facealpha',0.1,'edgecolor','none')
-ylim([-1 1]*7e-12); xlim([-.2 1]);
+ylim([-1 1]*0.5); xlim([-.2 1]);
 xlabel('time (s)'); ylabel('average evoked response (T)')
 title('occipital cortex')
 subplot(223)
 plot(time,mean(meg(:,59:70,:),3)); 
 hold on; 
 fill([.25 .4 .4 .25],[-1 -1 1 1]*7e-12,[0 0 1],'facealpha',0.1,'edgecolor','none')
-ylim([-1 1]*7e-12); xlim([-.2 1]);
+ylim([-1 1]*0.5); xlim([-.2 1]);
 xlabel('time (s)'); ylabel('average evoked response (T)')
 title('parietal cortex')
 subplot(224)
 plot(time,mean(meg(:,79:90,:),3)); 
 hold on; 
 fill([.25 .4 .4 .25],[-1 -1 1 1]*7e-12,[0 0 1],'facealpha',0.1,'edgecolor','none')
-ylim([-1 1]*7e-12);  xlim([-.2 1]);
+ylim([-1 1]*0.5);  xlim([-.2 1]);
 xlabel('time (s)'); ylabel('average evoked response (T)')
 title('temporal cortex')
 
@@ -389,7 +389,7 @@ data_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_sens/P300/';
 freql = {'cue'};
 ff = 1;
 
-latent_vars_name = sprintf('latent_vars_%sp.csv',freql{ff});
+latent_vars_name = sprintf('latent_vars_%s.csv',freql{ff});
 opts = detectImportOptions([data_path,latent_vars_name]);
 X = readtable([data_path,latent_vars_name],opts);
 fit_parameters = X.Properties.VariableNames(3:7);
@@ -411,12 +411,7 @@ for ii = 1:length(fit_parameters)
     Tfit{ii} = Xv.tStat;
     pfit{ii} = Xv.pValue;
 end
-ii=1;
-[p,ind] = sort(pfit{ii});
-% Significant sensors: 1 cluster on MRT
-ss = ind(p'<0.01./(length(sensall):-1:1));
 
-megs = meg(ss,:);
 
 T = struct;
 T.label = sensall;
@@ -442,11 +437,10 @@ saveas(gcf,sprintf('~/matlab/figures/%s.png',freq))
 
 %%
 % Plot p-values with multiple comparison correction
+figure; set(gcf,'color','w','position', [122   460   828   387])
 
-figure; set(gcf,'color','w')
-
-for ii = 2:4
-    subplot(1,3,ii-1)
+for ii = 3:4
+    subplot(1,2,ii-2)
     p = sort(pfit{ii});
     semilogy(p)
     hold on
@@ -457,27 +451,18 @@ for ii = 2:4
     legend('p-values','FDR','location','best')
     N = nnz(p'<0.05./(length(sensall):-1:1));
     
-    title(sprintf('%s: p-value of %.0f sensors < 0.05 (FDR)',fit_parameters{ii},N))
+    titlename = fit_parameters{ii};
+    k = strfind(titlename,'_');
+    titlename(k) = ' ';
+    title(sprintf('%s: p-value of %.0f sensors < 0.05 (FDR)',titlename,N))
 end
 saveas(gcf,sprintf('~/matlab/figures/%s_pvalue.png',freq))
 
-megs = megs(1,:);
-s = unique(X.subject);
-for sn = 1:length(s)
-    rr = X.subject == s(sn,:);
-    trials = X.trial(rr);
-    
-    meg_Elta = megs(rr);
 
-    EltaH = cumsum(meg_Elta)./trials'; 
-    ntrials = length(trials);
-    g = 0.8;
-    E_LTA = zeros(ntrials,1);
-    for t = 1:ntrials
-        E_LTA(t) = sum( g.^(0:(t-1)) .* EltaH(t:-1:1) );
-    end
-
-end
+[p,ind] = sort(pfit{ii});
+% Significant sensors: 1 cluster on MRT
+ss = ind(p'<0.01./(length(sensall):-1:1));
+megs = meg(ss,:);
 
 
 %% Plot Linear mixed effects model for grid
@@ -488,6 +473,7 @@ gridres = 5;
 load(fullfile(ftpath, ['template/sourcemodel/standard_sourcemodel3d',num2str(gridres),'mm']));
 sourcemodel.coordsys = 'mni';
 
+data_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_grid/P300/';
 freql = {'cue';'choice'}; 
 ff = 1;
 latent_vars_name = sprintf('latent_vars_%s.csv',freql{ff});
@@ -495,12 +481,13 @@ opts = detectImportOptions([data_path,latent_vars_name]);
 X = readtable([data_path,latent_vars_name],opts);
 fit_parameters = X.Properties.VariableNames(3:7);
 
-gridall = dlmread('/data/MBDU/MEG_MMI3/results/mmiTrial_aal_prep_mu5max/mni_grid.txt');
+gridall = dlmread('/data/MBDU/MEG_MMI3/results/mmiTrial_grid/mni_grid.txt');
+clear T pV
 T(1:length(fit_parameters)) = {zeros(size(gridall))};
 pV(1:length(fit_parameters)) = {zeros(size(gridall))};
 
-param_list = cell(1,15);
-for nn = 1:15
+param_list = cell(1,14);
+for nn = 1:14
     n = num2str(nn);
     if size(n,2) == 1
         n = ['00',n];
@@ -510,13 +497,13 @@ for nn = 1:15
     param_list{nn} = n;
 end
 
-datapath = sprintf('/data/MBDU/MEG_MMI3/results/mmiTrial_aal_prep_mu5max/P300/BF%s_P300_30Hzlowpass/',freql{ff});
+datapath = sprintf('/data/MBDU/MEG_MMI3/results/mmiTrial_grid/P300/BF%s_P300_30Hzlowpassp/',freql{ff});
     
 for ii = 1:length(fit_parameters)
     cd([datapath,'lme_',fit_parameters{ii}])
     X = zeros(nnz(gridall),1);
     pv = zeros(nnz(gridall),1);
-    for nn = 1:15
+    for nn = 1:14
         opts = detectImportOptions(['inds_',param_list{nn},'.csv']);
         Xv = readtable(['inds_',param_list{nn},'.csv'],opts);
         X((nn-1)*1000+1:(nn-1)*1000+size(Xv,1)) = Xv.tStat;
@@ -542,12 +529,10 @@ freq = sprintf('BF%s_P300_30Hzlowpass',freql{ff});
 
 figure; set(gcf,'color','w')
 
-for ii = [1,3,4]
-    if ii ==1
-        subplot(1,3,1)
-    else
-        subplot(1,3,ii-1)
-    end
+for ii = [1,2,3,5] %[1,3,4]
+    
+    subplot(2,3,ii)
+    
     p = sort(pV{ii});
     semilogy(p)
     hold on
@@ -562,7 +547,7 @@ for ii = [1,3,4]
 end
 %% Plot grid
 freq = 1;
-for ii = [1,3,4]%1:length(fit_parameters)
+for ii = [1,2,3,5]%1:length(fit_parameters)
     sourceant =[];
     
     sourceant.dim = sourcemodel.dim;
@@ -577,7 +562,7 @@ for ii = [1,3,4]%1:length(fit_parameters)
     
     crang = [-4 4];
     cfg = [];
-    cfg.method        = 'ortho'; %'ortho'
+    cfg.method        = 'slice'; %'ortho'
     if max(sourceout_Int.pow(:)) > -min(sourceout_Int.pow(:))
         cfg.location   = 'max';
     else

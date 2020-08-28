@@ -18,7 +18,7 @@ dimopt = 'BF'; %'BF','M'
 
 if strcmp(dimopt,'BF')
     data_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_grid/P300/';
-    gridall = dlmread('/data/MBDU/MEG_MMI3/results/mmiTrial_grid/mni_grid.txt');
+    gridall = dlmread('/data/MBDU/MEG_MMI3/results/mmiTrial_grid/P300/mni_grid.txt');
 
     npoints = '1000';
     
@@ -48,11 +48,12 @@ latent_vars_name = sprintf('latent_vars_%s.csv',freql{1});
 
 opts = detectImportOptions([data_path,latent_vars_name]);
 X = readtable([data_path,latent_vars_name],opts);
-% fit_parameters = X.Properties.VariableNames(3:7);
-fit_parameters = X.Properties.VariableNames(7);
+fit_parameters = X.Properties.VariableNames(3:7);
+
 
 runcompiled = ['run_',filename,'.sh'];               
-compv = 'v96'; % compiler version
+compv = 'v96'; % compiler version, changed to 2020a, v98
+compiler_path =  ['/data/liuzzil2/matlabCompiler/',filename];
 
 cd ~/matlab/matlab_compiler_test
 command_list = cell(1,length(param_list)*length(fit_parameters));
@@ -82,12 +83,22 @@ for ff = 1:size(freql,1)
             command_list{jj} =  sprintf(['export MCR_CACHE_ROOT=/lscratch/$SLURM_JOB_ID;'...
                 ' cd /lscratch/$SLURM_JOBID; if [ -f "%s"] ;  then  echo "data already in lscratch"; ',...
                 ' else cp %s%s /lscratch/$SLURM_JOB_ID/ && cp %s%s /lscratch/$SLURM_JOB_ID/; fi ;'...
-                ' test -d /lscratch/$SLURM_JOB_ID/v96 || tar -C /lscratch/$SLURM_JOB_ID -xf /usr/local/matlab-compiler/v96.tar.gz '...
+                ' test -d /lscratch/$SLURM_JOB_ID/%s || tar -C /lscratch/$SLURM_JOB_ID -xf /usr/local/matlab-compiler/%s.tar.gz '...
                 ' && ~/matlab/matlab_compiler_test/%s '...
-                ' /lscratch/$SLURM_JOB_ID/v96 %s %s %s %s %s %s;\n'],... % ' mv inds_%s.txt %s%s/lme_%s/;\n'],...              
-                meg_data_name,data_path,meg_data_name,data_path,latent_vars_name,runcompiled,...
+                ' /lscratch/$SLURM_JOB_ID/%s %s %s %s %s %s %s;\n'],... % ' mv inds_%s.txt %s%s/lme_%s/;\n'],...              
+                meg_data_name,data_path,meg_data_name,data_path,latent_vars_name,...
+                compv,compv,runcompiled,compv,...
                 meg_data_name,latent_vars_name,param_list{ii},npoints,fit_parameter,outpath);
                 %param_list{ii},data_path,freq,fit_parameter);
+%             command_list{jj} =  sprintf(['export MCR_CACHE_ROOT=/lscratch/$SLURM_JOB_ID;'...
+%                 ' cd /lscratch/$SLURM_JOBID; cp %s%s /lscratch/$SLURM_JOB_ID/ && cp %s%s /lscratch/$SLURM_JOB_ID/; '...
+%                 ' %s/application/%s %s/MATLAB_Runtime/%s'...
+%                 ' %s %s %s %s %s %s;\n'],... % ' mv inds_%s.txt %s%s/lme_%s/;\n'],...              
+%                 data_path,meg_data_name,data_path,latent_vars_name,...
+%                 compiler_path,runcompiled,compiler_path,compv,...
+%                 meg_data_name,latent_vars_name,param_list{ii},npoints,fit_parameter,outpath);
+%                 %param_list{ii},data_path,freq,fit_parameter);
+            
             end
         end
     end
@@ -118,7 +129,7 @@ emailnote = '"--mail-type=FAIL,END"';
 % need to include lscratch! see matlab biowulf page
 mem = '2';  % gigabytes
 threads = '2'; % number of threads
-bundles = '1'; % limits number of jobs running at the same time
+bundles = '14'; % limits number of jobs running at the same time
 logfolder = '~/matlab/matlab_compiler_test/swarm_logs';
 
 jobid = evalc(sprintf('!swarm --job-name lmix_%sP300 --gres lscratch:10 -g %s -t %s -b %s --time 01:00:00 --logdir %s -f mmi_LTA_P300.swarm --sbatch %s --devel',...
