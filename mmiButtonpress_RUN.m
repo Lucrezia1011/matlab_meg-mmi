@@ -61,7 +61,7 @@ end
 %% Read results
 Tstat_all = cell(1,length(data_list));
 
-for ii = 13%length(data_list)
+for ii =1:length(data_list)
     data_name = data_list{ii};
     sub = data_name(5:9);
     processing_folder = ['/data/MBDU/MEG_MMI3/data/derivatives/sub-',sub,'/',data_name(1:end-3),'/'];
@@ -110,7 +110,7 @@ end
 
 
 %% Plot in anatomical space
-ii =3 ;
+ii = 13;
 ftpath   = '/home/liuzzil2/fieldtrip-20190812/';
 load(fullfile(ftpath, ['template/sourcemodel/standard_sourcemodel3d',num2str(gridres),'mm']));
 % mri_mni = ft_read_mri('~/fieldtrip-20190812/external/spm8/templates/T1.nii');
@@ -152,7 +152,7 @@ sourceout_Int  = ft_sourceinterpolate(cfg, sourceant , mri);
 sourceout_Int.pow(~sourceout_Int.inside) = 0;
 sourceout_Int.coordsys = 'ctf';
 
-crang = [];
+crang = [min(sourceout_Int.pow(:)) min(sourceout_Int.pow(:))/2];
 % crang = [-.3 -.1];
 cfg = [];
 cfg.method        = 'ortho'; %'slice'

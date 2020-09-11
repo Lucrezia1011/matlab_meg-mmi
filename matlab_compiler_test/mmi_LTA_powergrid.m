@@ -46,7 +46,7 @@ for z = 1:npoints
     lme_res = table;
     lme_res.index = (nn-1)*npoints + z;
     for ii = 2:length(lme_names)
-        eval(['lme_res.',lme_names{ii},' = lme.Coefficients.',lme_names{ii},'(2);'])
+        lme_res.(lme_names{ii}) = lme.Coefficients.(lme_names{ii})(2);
     end
     LME = cat(1,LME,lme_res);
     

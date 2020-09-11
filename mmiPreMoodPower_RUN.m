@@ -17,7 +17,15 @@ data_list = [];
 % subject 24 : metal artefacts
 % subjects 26,49,53: no co-registration
 Nlist = 1:56;
-Nlist([10,24]) = []; %Nlist([10,24,26,49,53]) = [];
+subexclude = [10,24];
+
+roiopt = 'grid'; % running for grid
+switch roiopt
+    case 'grid'
+        subexclude = [subexclude,26,49,53];
+end
+
+Nlist(subexclude) = []; 
 zz= 0;
 for sn = Nlist %[1:6,8,9,14] % all subjects with continuos recordings and latent variables
         
@@ -53,12 +61,11 @@ gridres= 5;
 % freql=[ 4 8; 8 13; 13 25; 25 40; 40 150]; filter_type = 'but';
 % freql = [1 4]; filter_type = 'firls';
 
-roiopt = 'grid'; % running for grid
 freqband = [25 40]; 
 for ii = 1:length(data_list)
     data_name = data_list{ii};
     sub = data_name(5:9);
-    mmiPreMoodPower(data_name,roiopt,gridres,freqband); % pre mood
+%     mmiPreMoodPower(data_name,roiopt,gridres,freqband); % pre mood
     
 end
 
@@ -218,12 +225,142 @@ dlmwrite(sprintf('%s/powergrid_%.0f-%.0fHz.txt',out_path,...
 
 dlmwrite([out_path,'/mni_grid.txt'],gridall);
 writetable(ltvMood,[out_path,'/latent_vars.csv']);
-  
+ 
+
 %% Write data (sens)
 out_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_sens/pre_mood';
 dlmwrite(sprintf('%s/powersens_%.0f-%.0fHz.txt',out_path,...
     freqband(1),freqband(2)),Vall);
 writetable(ltvMood,[out_path,'/latent_vars.csv']);
+
+
+%% Do with with average power
+% Pall = dlmread(sprintf('%s/powergrid_%.0f-%.0fHz.txt',out_path,...
+%     freqband(1),freqband(2)));
+
+bestfit_name = '/data/MBDU/MEG_MMI3/data/behavioral/closed_LTA_coefs.csv';
+opts = detectImportOptions(bestfit_name);
+bf_pars = readtable(bestfit_name,opts); 
+
+subs = unique(ltvMood.subject);
+Ps = zeros(size(Pall,1),length(subs));
+rn = cell(1,length(subs));
+rnm = zeros(1,length(subs));
+w_LTE = zeros(1,length(subs));
+w_LTR = zeros(1,length(subs));
+M0 = zeros(1,length(subs));
+MDD = zeros(1,length(subs));
+for s = 1:length(subs)
+    Ps(:,s) = mean(Pall(:,ltvMood.subject == subs(s)),2);
+    recs = ltvMood.recording(ltvMood.subject == subs(s));
+    nrecs = unique(recs);
+    for n = 1:length(nrecs)
+        rn{s}(n) = nnz(recs == nrecs(n));
+    end
+    rnm(s) = mean(rn{s});
+    bestfit_sub = bf_pars(bf_pars.Var1 == subs(s),:);
+    w_LTE(s)  = bestfit_sub.w_LTE;
+    w_LTR(s)  = bestfit_sub.w_LTR;
+    M0(s)  = bestfit_sub.m_0;
+    MDD(s) = strcmp(meginfo.Group(meginfo.SDAN==subs(s)),'MDD');
+end
+
+r = zeros(1,size(Ps,1));
+pv= zeros(1,size(Ps,1));
+for n = 1:size(Ps,1)
+y =  Ps(n,:);
+x  = M0;
+% p = polyfit(x,y,1);
+% yp = polyval(p,x);
+% yres = y-yp;
+% SSresid = sum(yres.^2);
+% %Compute the total sum of squares of y by multiplying the variance of y by the number of observations minus 1:
+% SStotal = (length(yp)-1) * var(y);
+% % Compute R2 using the formula given in the introduction of this topic:
+% rsq = 1 - SSresid/SStotal;
+[r(n),pv(n)]=corr(x',y');
+end
+
+figure;clf;set(gcf,'color','w')
+
+subplot(221)
+scatter(M0,w_LTE)
+p = polyfit(M0,w_LTE,1);
+hold on
+plot(M0,M0*p(1)+p(2))
+xlabel('M_0'); ylabel('\beta_E')
+title(sprintf('m=%.3f, r=%.1f',p(1),corr(M0',w_LTE')))
+
+subplot(222)
+scatter(w_LTR,w_LTE)
+p = polyfit(w_LTR,w_LTE,1);
+hold on
+plot(w_LTR,w_LTR*p(1)+p(2))
+xlabel('\beta_R'); ylabel('\beta_E')
+title(sprintf('m=%.2f, r=%.1f',p(1),corr(w_LTR',w_LTE')))
+
+subplot(223)
+boxplot(M0,MDD)
+set(gca,'XTickLabel',{'HV';'MDD'})
+ylabel('M_0')
+title(sprintf('M_0 of HVs and MDDs are\nnot signtifcantly different'));
+
+subplot(224)
+boxplot(w_LTE,MDD)
+set(gca,'XTickLabel',{'HV';'MDD'})
+ylabel('\beta_E')
+title(sprintf('\\beta_E of HVs and MDDs are\nnot signtifcantly different'));
+
+%%
+R = zeros(size(gridall));
+R(gridall==1) =r;
+img = reshape(R,sourcemodel.dim);
+H = 2; E= 0.5;dh=0.1;C=26;
+tfce= matlab_tfce_transform(img,H,E,C,dh); % C=26 default setting
+
+tfce_rand = cell(1,1000);
+for n = 1:1000
+    R(gridall==1) =r(randperm(length(r)));
+    img = reshape(R,sourcemodel.dim);
+    tfcer= matlab_tfce_transform(img,H,E,C,dh);
+    tfcer = tfcer(:);
+    tfce_rand{n} = max(tfcer(gridall==1));
+end
+tfce_rand = cell2mat(tfce_rand);
+tfce_rand = sort(tfce_rand(:));
+% thresh = tfce_rand(0.99*1000*nnz(gridall));
+thresh = tfce_rand(0.975*1000);
+
+R = zeros(size(gridall));
+R(gridall==1) =r;
+sourceant.pow  = R;
+% sourceant.pow(tfce<thresh)  = 0;
+sourceant.dim = sourcemodel.dim;
+sourceant.inside = sourcemodel.inside;
+sourceant.pos = sourcemodel.pos;
+cfg = [];
+cfg.parameter = 'pow';
+sourceout_Int  = ft_sourceinterpolate(cfg, sourceant , mri_mni);
+sourceout_Int.pow(~sourceout_Int.inside) = 0;
+sourceout_Int.coordsys = 'mni';
+
+crang = [-.45 -.3];
+% crang = [thresh max(sourceant.pow)];
+cfg = [];
+cfg.method        = 'ortho'; %'ortho'
+if max(sourceout_Int.pow(:)) > -min(sourceout_Int.pow(:))
+    cfg.location   = 'max';
+else
+    cfg.location   = 'min';
+end
+cfg.funparameter = 'pow';
+cfg.maskparameter = 'pow';
+cfg.funcolormap  = 'auto';
+cfg.funcolorlim   = crang;
+cfg.opacitylim = crang;
+cfg.atlas = '~/fieldtrip-20190812/template/atlas/aal/ROI_MNI_V4.nii';
+
+ft_sourceplot(cfg, sourceout_Int);
 
 
 %% Plot Linear mixed effects model for grid
@@ -300,6 +437,22 @@ fprintf(sprintf('Loaded frequency %.0f-%.0fHz\n',freql(1),freql(2)))
 
 
 %% Plot p-value
+
+cd([datapath,'/lme_E/'])
+
+
+nullnames = dir('grid_permute');
+nullnames(1:2)=[];
+clusternull = zeros(length(nullnames),nnz(gridall));
+for n = 1:length(nullnames)
+    clusternull2 = dlmread(['grid_permute/',nullnames(n).name]);
+    clusternull(n,:) = clusternull2;
+end
+figure; histogram(clusternull(:))
+M = sort(max(clusternull,[],2),'descend');
+thresh = M(0.05*size(clusternull,1));
+
+
 figure; set(gcf,'color','w')
 
 p = sort(pV);
@@ -313,9 +466,26 @@ legend('p-values','FDR','location','best')
 N = nnz(p'<0.05./(nnz(gridall):-1:1));
 
 title(sprintf('E: p-value of %.0f voxels < 0.05 (FDR)',N))
-%%
 
-for p =  2:3
+
+%%
+E = 0.1; %0.5  % try and change the parameters
+H = 2; %2
+dh = 0.1; 
+M = zeros(1,length(nullnames));
+for n = 1:length(nullnames)
+    clusternull2 = zeros(size(gridall));
+    clusternull2(gridall==1) = clusternull(n,:);
+    img = reshape(clusternull2,sourcemodel.dim);
+    
+    tfce= matlab_tfce_transform(img,H,E,26,dh); % C=26 default setting
+    M(n) = max(tfce(:));
+    
+end
+M = sort(M,'descend');
+thresh = M(0.01*size(clusternull,1));
+
+for p =  2%2:3
     sourceant =[];
 
     switch p
@@ -329,6 +499,14 @@ for p =  2:3
             sourceant.pow = Tesum;
             fit_parameter = 'E sum';
     end
+    
+img = reshape(sourceant.pow,sourcemodel.dim);
+
+tfce= matlab_tfce_transform(img,H,E,26,dh); % C=26 default setting
+tfcen= matlab_tfce_transform(-img,H,E,26,dh); % C=26 default setting
+tfce = tfce - tfcen;
+sourceant.pow(tfce<thresh)  = 0;
+% sourceant.pow  = tfce(:);
 sourceant.dim = sourcemodel.dim;
 sourceant.inside = sourcemodel.inside;
 sourceant.pos = sourcemodel.pos;
@@ -338,8 +516,8 @@ sourceout_Int  = ft_sourceinterpolate(cfg, sourceant , mri_mni);
 sourceout_Int.pow(~sourceout_Int.inside) = 0;
 sourceout_Int.coordsys = 'mni';
 
-
-crang = [2 5];
+crang = [2,5];
+% crang = [thresh max(sourceant.pow)];
 cfg = [];
 cfg.method        = 'ortho'; %'ortho'
 if max(sourceout_Int.pow(:)) > -min(sourceout_Int.pow(:))
@@ -355,10 +533,12 @@ cfg.opacitylim = crang;
 cfg.atlas = '~/fieldtrip-20190812/template/atlas/aal/ROI_MNI_V4.nii';
 
 ft_sourceplot(cfg, sourceout_Int);
-title(sprintf('%s : %.0f-%.0fHz\npeak t-value %.1f',...
-    fit_parameter,freql(1),freql(2),max(abs(sourceant.pow(:)))))
+% title(sprintf('H=%.1f, E=%.1f .  %s : %.0f-%.0fHz\npeak t-value %.1f',...
+%     H,E,fit_parameter,freql(1),freql(2),max(abs(sourceant.pow(:)))))
+title(sprintf('H=%.1f, E=%.1f .  %s : %.0f-%.0fHz',...
+    H,E,fit_parameter,freql(1),freql(2)))
 
-saveas(gcf,sprintf('~/matlab/figures/%s_gamma_slice.png',fit_parameter))
+% saveas(gcf,sprintf('~/matlab/figures/%s_gamma_slice.png',fit_parameter))
 % saveas(gcf,sprintf('~/matlab/figures/ELTAgamma_peak1.png'))
 end
 

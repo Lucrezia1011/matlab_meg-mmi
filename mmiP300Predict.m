@@ -19,7 +19,7 @@ data_exclude = {'sub-24201_task-mmi3_run-1_meg.ds';...
 % subject 24 : metal artefacts
 % subjects 26,49,53: no co-registration
 Nlist = 1:56;
-Nlist([10,24,26,49,53]) = [];
+Nlist([10,24]) = [];
 zz= 0;
 for sn = Nlist % all subjects with continuos recordings and latent variables
         
@@ -113,48 +113,8 @@ Fmood = griddedInterpolant(x,v(ind),'pchip');
 %   
 % trials =  choice_match.bv_index(choice_match.gamble==1)-12;
 
-% Standard model
-A = bv.outcomeAmount; % Outcome
-A(isnan(A)) = [];
-ntrials = length(A);
-
-Es = (bv.winAmount + bv.loseAmount )/2;
-Es(isnan(Es)) = [];
-RPEs = A - Es;
-
-% LTA model
-EltaH = cumsum(A)./(1:ntrials)'; % Expectation, defined by Hanna
-
-RltaH = A - EltaH; % Assume RPE of first trial is 0
-
-
-bestfit_name = '/data/MBDU/MEG_MMI3/data/behavioral/closed_LTA_coefs.csv';
-opts = detectImportOptions(bestfit_name);
-bf_pars = readtable(bestfit_name,opts); 
-bestfit_sub = bf_pars(bf_pars.Var1 == str2double(sub),:);
-
-g = bestfit_sub.gamma;
-
-E_LTA = zeros(ntrials,1);
-RPE = zeros(ntrials,1);
-for t = 1:ntrials
-    E_LTA(t) = sum( g.^(0:(t-1))' .* EltaH(t:-1:1) );
-    RPE(t) = sum( g.^(0:(t-1))' .* RltaH(t:-1:1) );
-end
-
-% E_LTA = E_LTA(trials);
-% RPE = RPE(trials);
-
-% refer to previous trial
-E_LTA(2:end+1) = E_LTA;  
-E_LTA(1) = (bv.winAmount(13)+bv.loseAmount(13))/2;
-E_LTA(end)  =[];
-EltaH(2:end+1) = EltaH;
-EltaH(1) = (bv.winAmount(13)+bv.loseAmount(13))/2;
-EltaH(end) =[];
-% E_LTA = E_LTA(trials);
-% EltaH = EltaH(trials);
-
+LTAvars = LTA_calc(bv);
+LTAfields = fieldnames(LTAvars,'-full');
 
 %%
 [~,~,ind]= intersect(sensall,data.label);
@@ -168,12 +128,10 @@ trials =  cue_match.bv_index(cue_match.choice~=0)-12;
 
 % do mood and expectation (all 3 types) influence the P300?
 % does not make too much sense to include RPE
-E_cue = Es(trials);
-E_cue(ttdel) = [];
-Elta_cue = EltaH(trials);
-Elta_cue(ttdel) = [];
-Eltas_cue = E_LTA(trials);
-Eltas_cue(ttdel) = [];
+for iiF  = 1:7 % E,R and M from LTA model
+    LTAvars.(LTAfields{iiF}) = LTAvars.(LTAfields{iiF})(trials);
+    LTAvars.(LTAfields{iiF})(ttdel)  =[];
+end
 
 trials_cue = trials;
 trials_cue(ttdel) = [];
@@ -192,8 +150,9 @@ outpath = ['/data/MBDU/MEG_MMI3/data/derivatives/sub-',sub,'/',data_name(1:end-3
 save_name = sprintf('%s/cueP300_sens',outpath);
 
 
-ltvcue = table(Scue,trials_cue',mood_cue',E_cue,Elta_cue,Eltas_cue,gamble_cue',...
-    'VariableNames',{'subject','trial','mood','E','E_LTA','E_sum','choice'});
+ltvcue = table(Scue,trials_cue',mood_cue',LTAvars.E ,LTAvars.E_LTA ,...
+    LTAvars.E_sum,gamble_cue',LTAvars.M,...
+    'VariableNames',{'subject','trial','mood','E','E_LTA','E_sum','choice','M'});
 save(save_name,'ltvcue','sens_cue');
 
 
@@ -270,8 +229,9 @@ Pcue(grid.inside,:) = P;
 outpath = ['/data/MBDU/MEG_MMI3/data/derivatives/sub-',sub,'/',data_name(1:end-3)];
 save_name = sprintf('%s/cueP300_grid',outpath);
 
-ltvcue = table(Scue,trials_cue',mood_cue',E_cue,Elta_cue,Eltas_cue,gamble_cue',...
-    'VariableNames',{'subject','trial','mood','E','E_LTA','E_sum','choice'});
+ltvcue = table(Scue,trials_cue',mood_cue',LTAvars.E ,LTAvars.E_LTA ,...
+    LTAvars.E_sum,gamble_cue',LTAvars.M,...
+    'VariableNames',{'subject','trial','mood','E','E_LTA','E_sum','choice','M'});
 
 save(save_name,'Pcue','ltvcue');
 end
@@ -300,8 +260,8 @@ for s = 1:length(data_list)
 end
 outpath = '/data/MBDU/MEG_MMI3/results/mmiTrial_sens/P300/';
 
-dlmwrite([outpath,'Mcue_P300_30Hzlowpassp.txt'],S_cue)
-writetable(ltv_cue,[outpath,'/latent_vars_cuep.csv']);
+dlmwrite([outpath,'Mcue_P300_30Hzlowpass.txt'],S_cue)
+writetable(ltv_cue,[outpath,'/latent_vars_cue.csv']);
 
 %% Create combined table for grid data
 
@@ -330,7 +290,7 @@ end
 P_cue = P_cue(gridall==1,:);
 outpath = '/data/MBDU/MEG_MMI3/results/mmiTrial_grid/P300/';
 
-dlmwrite([outpath,'BFcue_P300_30Hzlowpassp.txt'],P_cue)
+dlmwrite([outpath,'BFcue_P300_30Hzlowpass.txt'],P_cue)
 writetable(ltv_cue,[outpath,'/latent_vars_cue.csv']);
 
 

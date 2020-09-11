@@ -40,9 +40,9 @@ data_filt = ft_preproc_bandpassfilter(data.trial{1}, data.fsample,freqband,filt_
 data.trial{1} = data_filt;
 clear data_filt
 
-  %% Read events
+%% Read events
 
-[bv_match,bv] = matchTriggers(data_name, BadSamples); 
+[bv_match,bv] = matchTriggers(data_name, BadSamples);
 % cue_match = bv_match.answer;
 % choice_match = bv_match.choice;
 % outcome_match  = bv_match.outcome;
@@ -65,40 +65,17 @@ trials =  bv_match.ratemood.bv_index(bv_match.ratemood.sample~=0);
 
 trials = trials(moodind)-12;
 
-% Standard model
-A = bv.outcomeAmount; % Outcome
-A(isnan(A)) = [];
-ntrials = length(A);
-% LTA model
-EltaH = cumsum(A)./(1:ntrials)'; % Expectation, defined by Hanna
-RltaH = A - EltaH; % Assume RPE of first trial is 0
+LTAvars = LTA_calc(bv);
+LTAfields = fieldnames(LTAvars,'-full');
 
-
-bestfit_name = '/data/MBDU/MEG_MMI3/data/behavioral/closed_LTA_coefs.csv';
-opts = detectImportOptions(bestfit_name);
-bf_pars = readtable(bestfit_name,opts); 
-bestfit_sub = bf_pars(bf_pars.Var1 == str2double(sub),:);
-
-g = bestfit_sub.gamma;
-
-E_LTA = zeros(ntrials,1);
-RPE = zeros(ntrials,1);
-for t = 1:ntrials
-    E_LTA(t) = sum( g.^(0:(t-1))' .* EltaH(t:-1:1) );
-    RPE(t) = sum( g.^(0:(t-1))' .* RltaH(t:-1:1) );
+for iiF  = 3:7 % E,R and M from LTA model
+    LTAvars.(LTAfields{iiF})  = LTAvars.(LTAfields{iiF})(trials);
 end
-
-E_LTA = E_LTA(trials);
-RPE = RPE(trials);
-EltaH = EltaH(trials);
-RltaH = RltaH(trials);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-
-
 if strcmp(roiopt,'sens')
-  
- 
+    
+    
     [datave,ttdel]= define_trials(mood_sample, data, tasktime, [0,3],0);
     ntrials = length(datave.trial);
     %% Sensor level
@@ -109,113 +86,116 @@ if strcmp(roiopt,'sens')
     mood(ttdel) = [];
     trials(ttdel) = [];
     S = repmat(sub,length(mood),1);
-    RPE(ttdel) = [];
-    E_LTA(ttdel) = [];
-    EltaH(ttdel) = [];
-    RltaH(ttdel) = [];
-    ltvmood = table(S,trials',mood',EltaH,E_LTA,RltaH,RPE,'VariableNames',...
-        {'subject','trial','mood','E','E_sum','RPE','RPE_sum'});
-
-  
+    
+    for iiF  = 3:7 % E,R and M from LTA model
+        LTAvars.(LTAfields{iiF})(ttdel)  = [];
+    end
+    
+    ltvmood = table(S,trials',mood',LTAvars.E_LTA ,LTAvars.E_sum,LTAvars.R_LTA ,...
+        LTAvars.R_sum,LTAvars.M,'VariableNames',...
+        {'subject','trial','mood','E','E_sum','RPE','RPE_sum','M'});
+    
+    
     save_name = sprintf('%s/pre_mood_%s_%.0f-%.0fHz',...
         processing_folder,roiopt,freqband(1),freqband(2));
-
+    
     save(save_name,'ltvmood','V');
     
-
+    
 else
-
-%% Co-register MRI
-
-mri_name = [data_path(1:end-4),'anat/sub-',sub,'_acq-mprage_T1w.nii'];
-if ~exist(mri_name,'file')
-    mri_name = [mri_name,'.gz'];
-end
-fids_name =  ['sub-',sub,'_fiducials.tag'];
-mri = fids2ctf(mri_name,fids_name,0);
-
-grid =mniLeadfields(data_name,processing_folder,gridres,mri); % calculate leadfields on MNI grid
-
-
-%%
-
-icacomps = length(data.cfg.component);
-
-C = cov(data.trial{1}');
-E = svd(C);
-nchans = length(data.label);
-noiseC = eye(nchans)*E(end-icacomps); % ICA eliminates from 2 to 4 components
-% Cr = C + 4*noiseC; % old normalization, worth trying
-Cr = C + 0.05*E(1)*eye(size(C)); % 5% max singular value =~ 70*noise, standard
-
-[datave,ttdel]= define_trials(mood_sample, data, tasktime, [0,3],0);
-ntrials = length(datave.trial);
-Ctt = zeros([size(C),ntrials]);
-for tt=1:ntrials
-    Ctt(:,:,tt) = cov(datave.trial{tt}');
-end
-
-%% Beamfomer
-
-L = grid.leadfield(grid.inside);
-
-P = cell(size(L));
-for ii = 1:length(L)
-    lf = L{ii}; % Unit 1Am
     
-    % %  G O'Neill method, equivalent to ft
-    [v,d] = svd(lf'/Cr*lf);
-    d = diag(d);
-    jj = 2;
+    %% Co-register MRI
     
-    lfo = lf*v(:,jj); % Lead field with selected orientation
-    
-    % depth correct
-%     w = Cr\lfo / sqrt(lfo'/(Cr^2)*lfo) ;
-    w = Cr\lfo / (lfo'/Cr*lfo) ;
-    
-    pp  = zeros(ntrials,1);
-    for tt = 1:ntrials
-        pp(tt) =  w'*Ctt(:,:,tt)*w;
+    mri_name = [data_path(1:end-4),'anat/sub-',sub,'_acq-mprage_T1w.nii'];
+    if ~exist(mri_name,'file')
+        mri_name = [mri_name,'.gz'];
     end
-   
-    P{ii} = pp/(w'*noiseC*w);
-    if mod(ii,300) == 0
-        clc
-        fprintf('%s\n%.0f-%.0fHz: SAM running %.1f\n',...
-            data_name,freqband(1),freqband(2),ii/length(L)*100)
+    fids_name =  ['sub-',sub,'_fiducials.tag'];
+    mri = fids2ctf(mri_name,fids_name,0);
+    
+    grid =mniLeadfields(data_name,processing_folder,gridres,mri); % calculate leadfields on MNI grid
+    
+    
+    %%
+    
+    icacomps = length(data.cfg.component);
+    
+    C = cov(data.trial{1}');
+    E = svd(C);
+    nchans = length(data.label);
+    noiseC = eye(nchans)*E(end-icacomps); % ICA eliminates from 2 to 4 components
+    % Cr = C + 4*noiseC; % old normalization, worth trying
+    Cr = C + 0.05*E(1)*eye(size(C)); % 5% max singular value =~ 70*noise, standard
+    
+    [datave,ttdel]= define_trials(mood_sample, data, tasktime, [0,3],0);
+    ntrials = length(datave.trial);
+    Ctt = zeros([size(C),ntrials]);
+    for tt=1:ntrials
+        Ctt(:,:,tt) = cov(datave.trial{tt}');
     end
-
-end
-
-P  = cell2mat(P)';
-
-%%
-
-save_name = sprintf('%s/pre_mood_%s_%.0f-%.0fHz',...
+    
+    %% Beamfomer
+    
+    L = grid.leadfield(grid.inside);
+    
+    P = cell(size(L));
+    for ii = 1:length(L)
+        lf = L{ii}; % Unit 1Am
+        
+        % %  G O'Neill method, equivalent to ft
+        [v,d] = svd(lf'/Cr*lf);
+        d = diag(d);
+        jj = 2;
+        
+        lfo = lf*v(:,jj); % Lead field with selected orientation
+        
+        % depth correct
+        %     w = Cr\lfo / sqrt(lfo'/(Cr^2)*lfo) ;
+        w = Cr\lfo / (lfo'/Cr*lfo) ;
+        
+        pp  = zeros(ntrials,1);
+        for tt = 1:ntrials
+            pp(tt) =  w'*Ctt(:,:,tt)*w;
+        end
+        
+        P{ii} = pp/(w'*noiseC*w);
+        if mod(ii,300) == 0
+            clc
+            fprintf('%s\n%.0f-%.0fHz: SAM running %.1f\n',...
+                data_name,freqband(1),freqband(2),ii/length(L)*100)
+        end
+        
+    end
+    
+    P  = cell2mat(P)';
+    
+    %%
+    
+    save_name = sprintf('%s/pre_mood_%s_%.0f-%.0fHz',...
         processing_folder,roiopt,freqband(1),freqband(2));
-
-mood(ttdel) = [];
-trials(ttdel) = [];
-S = repmat(sub,length(mood),1);
-RPE(ttdel) = [];
-E_LTA(ttdel) = [];
-EltaH(ttdel) = [];
-RltaH(ttdel) = [];
-ltvmood = table(S,trials',mood',EltaH,E_LTA,RltaH,RPE,'VariableNames',...
-    {'subject','trial','mood','E','E_sum','RPE','RPE_sum'});
-
-%%
-save(save_name,'ltvmood','P');
-
+    
+    mood(ttdel) = [];
+    trials(ttdel) = [];
+    S = repmat(sub,length(mood),1);
+    
+    for iiF  = 3:7 % E,R and M from LTA model
+        LTAvars.(LTAfields{iiF})(ttdel)  = [];
+    end
+    
+    ltvmood = table(S,trials',mood',LTAvars.E_LTA ,LTAvars.E_sum,LTAvars.R_LTA ,...
+        LTAvars.R_sum,LTAvars.M,'VariableNames',...
+        {'subject','trial','mood','E','E_sum','RPE','RPE_sum','M'});
+    %%
+    save(save_name,'ltvmood','P');
+    
 end
 
 %%
-% 
+%
 % Pgrid = zeros(size(grid.inside));
 % Pgrid(grid.inside) = mean(P,2);
 % sourceant.pow = Pgrid;
-% sourceant.dim = [32 39 34]; % dimension of template 
+% sourceant.dim = [32 39 34]; % dimension of template
 % sourceant.inside = grid.inside;
 % sourceant.pos = grid.pos;
 % cfg = [];
@@ -223,8 +203,8 @@ end
 % sourceout_Int  = ft_sourceinterpolate(cfg, sourceant , mri);
 % sourceout_Int.pow(~sourceout_Int.inside) = 0;
 % sourceout_Int.coordsys = 'ctf';
-% 
-% 
+%
+%
 % crang = [];
 % cfg = [];
 % cfg.method        = 'slice'; %'ortho'
@@ -239,6 +219,6 @@ end
 % cfg.funcolorlim   = crang;
 % cfg.opacitylim = crang;
 % % cfg.atlas = '~/fieldtrip-20190812/template/atlas/aal/ROI_MNI_V4.nii';
-% 
+%
 % ft_sourceplot(cfg, sourceout_Int);
 

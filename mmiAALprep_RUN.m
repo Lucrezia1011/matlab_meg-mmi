@@ -18,7 +18,15 @@ data_list = [];
 % subject 24 : metal artefacts
 % subjects 26,49,53: no co-registration
 Nlist = 1:56;
-Nlist([10,24,26,49,53]) = [];
+subexclude = [10,24];
+
+roiopt = 'sens'; 
+switch roiopt
+    case 'AAL'
+        subexclude = [subexclude,26,49,53];
+end
+
+Nlist(subexclude) = []; 
 zz= 0;
 for sn = Nlist %[1:6,8,9,14] % all subjects with continuos recordings and latent variables
         
@@ -39,37 +47,41 @@ addpath /home/liuzzil2/fieldtrip-20190812/
 ft_defaults
 
 twind = [-.2,1];
-% 
-% roiopt = 'g';
-% for ii = 30:length(data_list) 
+
+% for ii = 1:length(data_list) 
 %     data_name = data_list{ii};
 %     sub = data_name(5:9);
 %     processing_folder = ['/data/MBDU/MEG_MMI3/data/derivatives/sub-',sub,'/',data_name(1:end-3),'/'];
 %     save_name = [processing_folder,'evoked_outcome_AAL.mat'];
-%     mmiAALprep(data_list{ii},twind)
+%     mmiAALprep(data_list{ii},twind,roiopt)
 % end
 % return
 %%
-freq = 'outcome';
+freq = 'outcome';% 'outcome', 'cue' , 'choice'
 % save(save_name ,'Ybeta','Ytheta','Y','ltvall')
 r = 0;
 Yall = [];
-YOut = [];
-
 ltv = [];
-ltvOut = [];
 
 Ym = [];
 
 ntrials = [];
 ntrialsOut = [];
+
+if strcmp(roiopt,'sens')
+    load('/data/MBDU/MEG_MMI3/results/mmiTrial_sens/sensors.mat')
+    cd('/data/MBDU/MEG_MMI3/data/bids/sub-24071/meg/')
+    hdr = ft_read_header(data_list{1});
+    channelsall = hdr.label(strcmp(hdr.chantype,'meggrad'));
+end
+
 for sn = 1:length(data_list) % all subjects with continuos recordings and latent variables
     
     data_name = data_list{sn};   
     sub = data_name(5:9);
     processing_folder = ['/data/MBDU/MEG_MMI3/data/derivatives/sub-',sub,'/',data_name(1:end-3),'/'];
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    save_name = [processing_folder,'evoked_',freq,'_AAL.mat'];
+    save_name = [processing_folder,'evoked_',freq,'_',roiopt,'.mat'];
     load(save_name)
     
     switch freq
@@ -84,16 +96,37 @@ for sn = 1:length(data_list) % all subjects with continuos recordings and latent
     r = r+1;
     ltvout.recording = repmat(r,size(ltvout,1),1);
    
-    YOut = cat(3,YOut,Yout);
+     if strcmp(roiopt,'sens')
+        cd(['/data/MBDU/MEG_MMI3/data/bids/sub-',sub,'/meg/'])
+        
+        % Get Bad channel names
+        fid = fopen([data_name,'/BadChannels']);
+        BadChannel = textscan(fid,'%s');
+        BadChannel = BadChannel{1};
+        fclose(fid);
+        channelSub = channelsall;
+        % Delete Bad channels
+        chanInd = zeros(size(channelsall));
+        for iiC = 1:length(BadChannel)
+            chanInd = chanInd | strcmp(channelsall,BadChannel{iiC});
+        end
+        channelSub(find(chanInd)) = [];
+
+        [~,~,ind]= intersect(channels,channelSub);
+        Yout = Yout(ind,:,:);
+     end
+    
+    
+    Yall = cat(3,Yall,Yout);
     % Check sign of evoked response
 %     Ym = cat(3,Ym, cat(2,mean(Ycue,3),mean(Yout,3),mean(Ychoice,3)));
     Ym = cat(3,Ym, cat(2,mean(Yout,3)));
     ntrialsOut = cat(1,ntrialsOut,size(Yout,3));
     
-    if isempty(ltvOut)
-        ltvOut = ltvout;
+    if isempty(ltv)
+        ltv = ltvout;
     else
-        ltvOut(end+(1:size(ltvout,1)),:) = ltvout;
+        ltv(end+(1:size(ltvout,1)),:) = ltvout;
     end
     
     
@@ -104,9 +137,10 @@ Ym0 = Ym;
 % ltv = flipud(ltv);
 clear ltvchoice ltvcue ltvout Y Yalpha Ybeta Ytheta Ycue Yout Ychoice
 %% Sign flip for source localized evoked responses
+if strcmp(roiopt,'AAL')
 % S = zeros(size(Yall));
 
-Sout = zeros(size(YOut));
+Sout = zeros(size(Yall));
 % Scue = zeros(size(YCue));
 % Schoice = zeros(size(YChoice));
 
@@ -167,20 +201,20 @@ end
 figure; set(gcf,'color','w')
 % subplot(231); imagesc(mean(YCue,3)); caxis([-1 1]*4e-12)
 % subplot(232); imagesc(mean(YChoice,3)); caxis([-1 1]*4e-12)
-subplot(131); imagesc(mean(YOut,3)); caxis([-1 1]*.3)
+subplot(131); imagesc(mean(Yall,3)); caxis([-1 1]*.3)
 
 % YCue = YCue.*Scue;
 % YChoice = YChoice.*Schoice;
-YOut = YOut.*Sout;
+Yall = Yall.*Sout;
 
 % subplot(234); imagesc(mean(YCue,3)); caxis([-1 1]*4e-12)
 % subplot(235); imagesc(mean(YChoice,3)); caxis([-1 1]*4e-12)
-subplot(132); imagesc(mean(YOut,3)); caxis([-1 1]*.3)
+subplot(132); imagesc(mean(Yall,3)); caxis([-1 1]*.3)
 
 
 % Flip ROIs to match each other
 % Yu = cat(2,mean(YCue,3),mean(YChoice,3),mean(YOut,3));
-Yu = mean(YOut,3);
+Yu = mean(Yall,3);
 
 %    % first pass
 Yav = [];
@@ -217,13 +251,13 @@ Sout = repmat(s,[1,npoints,sum(ntrialsOut)]);
 
 % YCue = YCue.*Scue;
 % YChoice = YChoice.*Schoice;
-YOut = YOut.*Sout;
+Yall = Yall.*Sout;
 
 % subplot(234); imagesc(mean(YCue,3)); caxis([-1 1]*4e-12)
 % subplot(235); imagesc(mean(YChoice,3));  caxis([-1 1]*4e-12)
-subplot(133); imagesc(mean(YOut,3));  caxis([-1 1]*.3)
+subplot(133); imagesc(mean(Yall,3));  caxis([-1 1]*.3)
 
-
+end
 
 %% PCA evoked responses experiment
 % if ~exist('atlas','var')    
@@ -247,28 +281,72 @@ subplot(133); imagesc(mean(YOut,3));  caxis([-1 1]*.3)
 % % plot(time,score(:,3))
 % % plot(time,score(:,4))
 % title('PCA')
-%%
-
-YOut = permute(YOut,[2,1,3]);
-YOut = reshape(YOut,size(YOut,1)*size(YOut,2),size(YOut,3)); % nrois * npoints * ntrials
-
-% YCue = permute(YCue,[2,1,3]);
-% YCue = reshape(YCue,size(YCue,1)*size(YCue,2),size(YCue,3)); % nrois * npoints * ntrials
-% 
-% YChoice = permute(YChoice,[2,1,3]);
-% YChoice = reshape(YChoice,size(YChoice,1)*size(YChoice,2),size(YChoice,3)); % nrois * npoints * ntrials
-
 
 %% Write data
 
-dlmwrite(['/data/MBDU/MEG_MMI3/results/mmiTrial_aal/meg_trials_evoked_',freq,'.txt'],YOut);
-% dlmwrite(['/data/MBDU/MEG_MMI3/results/mmiTrial_aal_prep_mu5max/latent_vars_new/meg_trials_',freq,'_choice.txt'],YChoice);
-% dlmwrite(['/data/MBDU/MEG_MMI3/results/mmiTrial_aal_prep_mu5max/latent_vars_new/meg_trials_',freq,'_cue.txt'],YCue);
+switch roiopt
+    case 'AAL'
+        Yall = permute(Yall,[2,1,3]);
+        Yall = reshape(Yall,size(Yall,1)*size(Yall,2),size(Yall,3)); % nrois * npoints * ntrials
 
-writetable(ltvOut,['/data/MBDU/MEG_MMI3/results/mmiTrial_aal/latent_vars_evoked_',freq,'.csv']);
-% writetable(ltvChoice,['/data/MBDU/MEG_MMI3/results/mmiTrial_aal_prep_mu5max/latent_vars_new/latent_vars_',freq,'_choice.csv']);
-% writetable(ltvCue,['/data/MBDU/MEG_MMI3/results/mmiTrial_aal_prep_mu5max/latent_vars_new/latent_vars_',freq,'_cue.csv']);
+        dlmwrite(['/data/MBDU/MEG_MMI3/results/mmiTrial_aal/meg_trials_evoked_',freq,'.txt'],Yall);
+        writetable(ltv,['/data/MBDU/MEG_MMI3/results/mmiTrial_aal/latent_vars_evoked_',freq,'.csv']);
+    case 'sens'
+        writetable(ltv,['/data/MBDU/MEG_MMI3/results/mmiTrial_sens/evoked_outcome/latent_vars_evoked_',freq,'.csv']);
+        
+        Yall = permute(Yall,[2,3,1]);
+        nrois =  size(channels,1);  
+        
+        for nn = 1:nrois
+            n = num2str(nn);
+            if size(n,2) == 1
+                n = ['00',n];
+            elseif size(n,2) == 2
+                n = ['0',n];
+            end
+            dlmwrite(sprintf(['/data/MBDU/MEG_MMI3/results/mmiTrial_sens/',...
+                'evoked_outcome/meg_trials/sens_%s.txt'],n),Yall(:,:,nn));
+            
+        end
+end
 
+%% Save averages
+dlmwrite(['/data/MBDU/MEG_MMI3/results/mmiTrial_sens/evoked_time/meg_trials_evoked_',freq,'.txt'],mean(Yall,3));
 
+time = linspace(-.5,.7,360); % linspace(-.2,1,360)
+M=mean(Yall(:,:,ltv.E>median(ltv.E)),3) - mean(Yall(:,:,ltv.E<median(ltv.E)),3);
+v = squeeze(var(M,0,2));
+v = max(abs(M),[],2);
+[~,ind]=sort(v,'descend');
+figure;clf; set(gcf,'color','w')
+for c = 1:2
+chans = ind(c);
 
+subplot(2,1,c)
+plot(time,mean(Yall(chans,:,ltv.E<median(ltv.E)),3)')
+hold on
+plot(time,mean(Yall(chans,:,ltv.E>median(ltv.E)),3)')
+hold on
+plot(time,mean(Yall(chans,:,ltv.E>median(ltv.E)),3)'-...
+    mean(Yall(chans,:,ltv.E<median(ltv.E)),3)','k')
+grid on; ylim([-1 1]*.5e-13)
+title(['sensor ',channels{chans}])
+end
+legend('Low expectation','high expectation','diff')
+
+v = squeeze(var(Ym,0,2));
+[~,ind]=sort(v,'descend');
+u=unique(ind(1:10,:));
+N = zeros(1,length(u));
+for iiU = 1:length(u)
+   N(iiU) = nnz(ind(1:10,:)==u(iiU) );
+end
+[~,indN] = sort(N,'descend');
+chans = sort(u(indN(1:10)));
+
+figure
+subplot(211)
+plot(linspace(-.2,1,360),mean(Yall(chans,:,ltv.E<median(ltv.E)),3)')
+subplot(212)
+plot(linspace(-.2,1,360),mean(Yall(chans,:,ltv.E>median(ltv.E)),3)')
 

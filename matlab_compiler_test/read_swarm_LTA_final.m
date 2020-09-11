@@ -38,7 +38,7 @@ opts = detectImportOptions([data_path,latent_vars_name]);
 Xv = readtable([data_path,latent_vars_name],opts);
 
 % fit_parameters = Xv.Properties.VariableNames([3,5,7:9,11]);
-fit_parameters = Xv.Properties.VariableNames([3:9]);
+fit_parameters = Xv.Properties.VariableNames([3:10]);
 
 
 addpath /home/liuzzil2/fieldtrip-20190812/
@@ -59,6 +59,9 @@ if ~exist('meg','var')
     meg = dlmread(sprintf('%s%s',data_path,meg_data_name));
     meg = reshape(meg, npoints,nrois,size(meg,2));
 
+    
+    S = std(mean(meg,3),0,1);
+    [~,ind]= sort(S,'descend');
     aal_inds = {[1,4,10]; [2,3,7,8]; [5,6,9]}; % ROIs with largest variance over all trials
     figure; set(gcf,'color','w','position', [285   518   1031   408])
     for ii = 1:3
@@ -127,24 +130,24 @@ end
 
 S = std(meg,0,2);
 [~,ind]= sort(S,'descend');
-figure; 
+figure; set(gcf,'color','w','position', [285   518   1031   408])
 
 c = corr(meg(ind(1:16),:)');
 subplot(131)
 inds = [1,4,10];
 plot(time,meg(ind(inds),:)');
 legend(aal_labels{ind(inds)})
-grid on
+grid on; axis([-.2 1 -.3 0.6])
 inds = [2,3,7,8];
 subplot(132)
 plot(time,meg(ind(inds),:)');
 legend(aal_labels{ind(inds)})
-grid on
+grid on; axis([-.2 1 -.3 0.6])
 inds = [5,6,9];
 subplot(133)
 plot(time,meg(ind(inds),:)');
 legend(aal_labels{ind(inds)})
-grid on
+grid on; axis([-.2 1 -.3 0.6])
 
 
 %% Check missing
@@ -154,14 +157,14 @@ command_list = [];
 for m = 1:length(fit_parameters)
 
     fit_parameter = fit_parameters{m};
-    
+    outpath = [data_path,freq,'/lme_',fit_parameter,'/'];
     for ii = 1:length(param_list)
         filename = sprintf('ROI_%s.csv',param_list{ii});
         if ~exist(sprintf('%s%s/lme_%s/%s',data_path,freq,fit_parameter,filename),'file')
             
             command_list{end+1} = {
                 meg_data_name,latent_vars_name,param_list{ii},...
-                num2str(npoints),fit_parameter,freq,data_path};
+                num2str(npoints),fit_parameter,outpath};
         end
     end
     
@@ -170,7 +173,7 @@ end
 if ~isempty(command_list)
 parfor ii = 1:length(command_list)
     minputs = command_list{ii};
-    mmi_LTA_trials_new(minputs{1},minputs{2},minputs{3},minputs{4},minputs{5},minputs{6},minputs{7});
+    mmi_LTA_trials_new(minputs{1},minputs{2},minputs{3},minputs{4},minputs{5},minputs{6});
     
 end
 end
@@ -214,8 +217,12 @@ for m = 1:length(fit_parameters)
         TFCE = tfce2d(LME);
 
         clusteraal{m}(iir,:) = TFCE';
-             
+        % Equivalent to 
+%         [tfced] = matlab_tfce_transform(LME,2,0.5,4,0.1);   
+%         [tfcedn] = matlab_tfce_transform(-LME,2,0.5,4,0.1);   
+%         tfced = tfced - tfcedn;
     end
+    fprintf('Read parameter %d/%d\n',m,length(fit_parameters))
 end
 
 
@@ -252,11 +259,15 @@ for m = 1:length(fit_parameters)
     if exist('ROI_permute','dir')
         nullnames = dir('ROI_permute');
         nullnames(1:2)=[];
-        clusternull2 = zeros(length(nullnames),2);
+        clusternull2 = cell(length(nullnames),1);
         for n = 1:length(nullnames)
-            clusternull2(n,:) = dlmread(['ROI_permute/',nullnames(n).name]);
+            if nullnames(n).bytes == 0
+                delete(['ROI_permute/',nullnames(n).name])
+            else
+                clusternull2{n} = dlmread(['ROI_permute/',nullnames(n).name]);
+            end
         end
-        clusternull{m} = cat(1,clusternull{m},clusternull2);
+        clusternull{m} = cat(1,clusternull{m},cell2mat(clusternull2));
     end
     
 end
@@ -376,7 +387,7 @@ for m = 1:length(fit_parameters)
             
     end
     if n ~= 0
-%         saveas(gcf,sprintf('~/matlab/figures/%s_%_final.tif',freq,fit_parameters{m}))
+        saveas(gcf,sprintf('~/matlab/figures/%s_%s_final.tif',freq,fit_parameters{m}))
     end
 
 end

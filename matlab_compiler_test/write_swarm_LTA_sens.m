@@ -12,8 +12,8 @@ filename = 'mmi_LTA_trials_new';
 % eval(sprintf('mcc2 -v -m %s.m -R -nojvm singleCompThread ',filename))
 
 %% Set up parameters
-nrois = 116;
 
+nrois = 266;
 param_list = cell(nrois,1);
 for nn = 1:nrois
     n = num2str(nn);
@@ -25,30 +25,22 @@ for nn = 1:nrois
     param_list{nn} = n;
 end
 
-% nrois = 2;
-% param_list = cell(nrois,1);
-% param_list{1} = '018';
-% param_list{2} = '070';
-
 %%
 
-% freq  = 'theta_choice';
-% freq = 'tfs_cue' ;
 freq = 'evoked_outcome';
-if strncmp(freq,'tfs',3)
-    npoints = '1715'; 
-else
-    npoints = '360';
+
+npoints = '360';
 % elseif regexp(freq,'outcome')
 %     npoints = '360';
 % elseif regexp(freq,'choice')
 %     npoints = '360';
-end
+
 
 meg_data_name = ['meg_trials_',freq,'.txt'];
 latent_vars_name = ['latent_vars_',freq,'.csv'];
 
-data_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_aal/';
+data_path = ['/data/MBDU/MEG_MMI3/results/mmiTrial_sens/',freq,'/'];
+meg_data_path = [data_path,'meg_trials/'];
 
 opts = detectImportOptions([data_path,latent_vars_name]);
 X = readtable([data_path,latent_vars_name],opts);
@@ -56,8 +48,9 @@ X = readtable([data_path,latent_vars_name],opts);
 % X.RPE_abs = abs(X.RPE);
 % writetable(X,[data_path,latent_vars_name]);
 
-fit_parameters = X.Properties.VariableNames(3:9);
+% fit_parameters = X.Properties.VariableNames(3:9);
 % fit_parameters = X.Properties.VariableNames([4:7,10]);
+fit_parameters = X.Properties.VariableNames([3,5,7,8:10]);
 
 runcompiled = ['run_',filename,'.sh'];               
 compv = 'v96'; % compiler version
@@ -70,24 +63,28 @@ jj = 0;
 for m = 1:length(fit_parameters)
 
     fit_parameter = fit_parameters{m};
-    outpath = [data_path,freq,'/lme_',fit_parameter,'/'];
+    outpath = [data_path,'lme_',fit_parameter,'/'];
     
     if ~exist(outpath,'dir')
         mkdir(outpath) 
     end
     
     for ii = 1:length(param_list)
+        meg_data_name = sprintf('sens_%s.txt',param_list{ii});
+        if ~exist( sprintf('%sROI_%s.csv',outpath,param_list{ii}),'file')
         jj = jj+1;
         command_list{jj} =  sprintf(['export MCR_CACHE_ROOT=/lscratch/$SLURM_JOB_ID;'...
             '  cd /lscratch/$SLURM_JOBID; if [ -f "%s"] ;  then  echo "data already in lscratch"; ',...
             '  else cp %s%s /lscratch/$SLURM_JOB_ID/ && cp %s%s /lscratch/$SLURM_JOB_ID/; fi ;'...
             ' test -d /lscratch/$SLURM_JOB_ID/v96 || tar -C /lscratch/$SLURM_JOB_ID -xf /usr/local/matlab-compiler/v96.tar.gz '...
             ' && ~/matlab/matlab_compiler_test/%s '...
-            ' /lscratch/$SLURM_JOB_ID/v96 %s %s %s %s %s %s \n'],...
-            meg_data_name,data_path,meg_data_name,data_path,latent_vars_name,runcompiled,...
-            meg_data_name,latent_vars_name,param_list{ii},npoints,fit_parameter,outpath);
+            ' /lscratch/$SLURM_JOB_ID/v96 %s %s %s %s %s ./;' ...
+            ' mv ROI_1.csv %sROI_%s.csv \n'],...
+            meg_data_name,meg_data_path,meg_data_name,data_path,latent_vars_name,runcompiled,...
+            meg_data_name,latent_vars_name,'1',npoints,fit_parameter,outpath,param_list{ii});   
+        end        
     end
-end
+end    
 command_list(jj+1:end) = [];
 command_list = cell2mat(command_list);
 % write the commands into a swarm file
@@ -117,9 +114,9 @@ threads = '2'; % number of threads
 bundles = '12'; % limits number of jobs running at the same time
 logfolder = '~/matlab/matlab_compiler_test/swarm_logs';
 
-jobid = evalc(sprintf('!swarm --job-name lmix%s_%d --gres lscratch:10 -g %s -t %s -b %s --time 0:30:00 --logdir %s -f mmi_LTA_trials_%s_%d.swarm --sbatch %s --devel',...
-    freq,nrois,mem,threads,bundles, logfolder,freq,nrois,emailnote))
+jobid = evalc(sprintf('!swarm --job-name lmix%s_sens --gres lscratch:10 -g %s -t %s -b %s --time 0:30:00 --logdir %s -f mmi_LTA_trials_%s_%d.swarm --sbatch %s --devel',...
+    freq,mem,threads,bundles, logfolder,freq,nrois,emailnote))
 
 % try starting swarm from a non interactive session
-fprintf('swarm --job-name lmix%s_%d --gres lscratch:10 -g %s -t %s -b %s --time 0:30:00 --logdir %s -f mmi_LTA_trials_%s_%d.swarm --sbatch %s\n',...
-    freq,nrois,mem,threads,bundles, logfolder,freq,nrois,emailnote);
+fprintf('swarm --job-name lmix%s_sens --gres lscratch:10 -g %s -t %s -b %s --time 0:30:00 --logdir %s -f mmi_LTA_trials_%s_%d.swarm --sbatch %s\n',...
+    freq,mem,threads,bundles, logfolder,freq,nrois,emailnote);

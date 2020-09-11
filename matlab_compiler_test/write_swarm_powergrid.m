@@ -38,7 +38,8 @@ end
 
 opts = detectImportOptions([data_path,latent_vars_name]);
 X = readtable([data_path,latent_vars_name],opts);
-fit_parameters = X.Properties.VariableNames(3:5); % Only do E LTA
+% fit_parameters = X.Properties.VariableNames(3:5); % Only do E LTA
+fit_parameters = X.Properties.VariableNames([4:5,8]); % Only do E LTA
 
 runcompiled = ['run_',filename,'.sh'];
 compv = 'v96'; % compiler version
@@ -104,7 +105,7 @@ emailnote = '"--mail-type=FAIL,END"';
 % need to include lscratch! see matlab biowulf page
 mem = '1';  % gigabytes
 threads = '2'; % number of threads
-bundles = '1'; % limits number of jobs running at the same time
+bundles = '3'; % limits number of jobs running at the same time
 logfolder = '~/matlab/matlab_compiler_test/swarm_logs';
 
 jobid = evalc(sprintf('!swarm --job-name lmix_powergrid --gres lscratch:10 -g %s -t %s -b %s --time 01:00:00 --logdir %s -f mmi_LTA_powergrid.swarm --sbatch %s --devel',...

@@ -15,7 +15,7 @@ nrois = 116;
 
 % freq = 'beta';
 freq  = 'evoked_outcome';
-fit_parameter = 'RPE_LTA'; % RPE_LTA, E_sum
+fit_parameter = 'RPE_sum'; % RPE_LTA, E_sum
 data_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_aal/';
 % data_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_sensors_prep/';
 
@@ -83,7 +83,7 @@ end
 command_list = cell2mat(command_list);
 
 % write the commands into a swarm file
-file_handle = fopen(sprintf('mmi_LTA_trials_permute_%s.swarm',freq),'w+');
+file_handle = fopen(sprintf('mmi_LTA_trials_permute_%s-%s.swarm',freq,fit_parameter),'w+');
 % file_handle = fopen(sprintf('mmi_LTA_trials_%s_missing.swarm',freq),'w+');
 
 fprintf(file_handle,command_list);
@@ -113,11 +113,11 @@ threads = '1'; % number of threads
 bundles = '5'; %3 % limits number of jobs running at the same time
 
 logfolder = '~/matlab/matlab_compiler_test/swarm_logs';
-jobid = evalc(sprintf('!swarm --job-name %s_%s --gres lscratch:10 -g %s -t %s -b %s --time 24:00:00 --logdir %s -f mmi_LTA_trials_permute_%s.swarm --sbatch %s --devel',...
-    freq,fit_parameter,mem,threads,bundles, logfolder,freq,emailnote))
+jobid = evalc(sprintf('!swarm --job-name %s_%s --gres lscratch:10 -g %s -t %s -b %s --time 24:00:00 --logdir %s -f mmi_LTA_trials_permute_%s-%s.swarm --sbatch %s --devel',...
+    freq,fit_parameter,mem,threads,bundles, logfolder,freq,fit_parameter,emailnote))
 
 % try starting swarm from a non interactive session
-fprintf('swarm --job-name %s_%s --gres lscratch:10 -g %s -t %s -b %s --time 48:00:00 --logdir %s -f mmi_LTA_trials_permute_%s.swarm --sbatch %s\n',...
-    freq,fit_parameter,mem,threads,bundles, logfolder,freq,emailnote);
+fprintf('swarm --job-name %s_%s --gres lscratch:10 -g %s -t %s -b %s --time 48:00:00 --logdir %s -f mmi_LTA_trials_permute_%s-%s.swarm --sbatch %s\n',...
+    freq,fit_parameter,mem,threads,bundles, logfolder,freq,fit_parameter,emailnote);
 
     

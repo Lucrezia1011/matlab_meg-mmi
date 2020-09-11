@@ -48,8 +48,8 @@ latent_vars_name = sprintf('latent_vars_%s.csv',freql{1});
 
 opts = detectImportOptions([data_path,latent_vars_name]);
 X = readtable([data_path,latent_vars_name],opts);
-fit_parameters = X.Properties.VariableNames(3:7);
-
+% fit_parameters = X.Properties.VariableNames(3:7);
+fit_parameters = X.Properties.VariableNames([5,6,8]);
 
 runcompiled = ['run_',filename,'.sh'];               
 compv = 'v96'; % compiler version, changed to 2020a, v98
@@ -62,7 +62,7 @@ jj = 0;
 % make a command on a new line for each parameter
 for ff = 1:size(freql,1)
 %     freq = sprintf('%s%s_P300_30Hzlowpass',dimopt,freql{ff});
-    freq = sprintf('%s%s_P300_30Hzlowpassp',dimopt,freql{ff});
+    freq = sprintf('%s%s_P300_30Hzlowpass',dimopt,freql{ff});
     meg_data_name = sprintf('%s.txt',freq);
 
     latent_vars_name = sprintf('latent_vars_%s.csv',freql{ff});
@@ -129,14 +129,14 @@ emailnote = '"--mail-type=FAIL,END"';
 % need to include lscratch! see matlab biowulf page
 mem = '2';  % gigabytes
 threads = '2'; % number of threads
-bundles = '14'; % limits number of jobs running at the same time
+bundles = '6'; % limits number of jobs running at the same time
 logfolder = '~/matlab/matlab_compiler_test/swarm_logs';
 
 jobid = evalc(sprintf('!swarm --job-name lmix_%sP300 --gres lscratch:10 -g %s -t %s -b %s --time 01:00:00 --logdir %s -f mmi_LTA_P300.swarm --sbatch %s --devel',...
     dimopt,mem,threads,bundles, logfolder,emailnote))
 
 % try starting swarm from a non interactive session
-fprintf('swarm --job-name lmix_%sP300 --gres lscratch:10 -g %s -t %s -b %s --time 01:00:00 --logdir %s -f mmi_LTA_P300.swarm --sbatch %s\n',...
+fprintf('swarm --job-name lmix_%sP300 --gres lscratch:10 -g %s -t %s -b %s --time 02:00:00 --logdir %s -f mmi_LTA_P300.swarm --sbatch %s\n',...
     dimopt,mem,threads,bundles, logfolder,emailnote);
 
 
