@@ -1,4 +1,4 @@
-function mmiPreMoodPower(data_name,roiopt,gridres,freqband)
+function mmiPreMoodPower(data_name,roiopt,gridres,freqband,mu)
 % Created August 3 2020: mmi_grid_prep_Power with new preprocessing
 % roiopt = 'grid' mni grid
 % gridres = grid resolution in mm
@@ -125,7 +125,7 @@ else
     nchans = length(data.label);
     noiseC = eye(nchans)*E(end-icacomps); % ICA eliminates from 2 to 4 components
     % Cr = C + 4*noiseC; % old normalization, worth trying
-    Cr = C + 0.05*E(1)*eye(size(C)); % 5% max singular value =~ 70*noise, standard
+    Cr = C + mu*E(1)*eye(size(C)); % 5% max singular value =~ 70*noise, standard
     
     [datave,ttdel]= define_trials(mood_sample, data, tasktime, [0,3],0);
     ntrials = length(datave.trial);
@@ -171,8 +171,8 @@ else
     
     %%
     
-    save_name = sprintf('%s/pre_mood_%s_%.0f-%.0fHz',...
-        processing_folder,roiopt,freqband(1),freqband(2));
+    save_name = sprintf('%s/pre_mood_%s_%.0f-%.0fHz_mu%.0f',...
+        processing_folder,roiopt,freqband(1),freqband(2),mu*100);
     
     mood(ttdel) = [];
     trials(ttdel) = [];

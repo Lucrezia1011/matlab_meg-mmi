@@ -1,5 +1,6 @@
 % Made August 4th 2020
 % Based on mmi_P300_predict.m
+
 clear all
 close all
 clc
@@ -354,7 +355,7 @@ opts = detectImportOptions([data_path,latent_vars_name]);
 X = readtable([data_path,latent_vars_name],opts);
 fit_parameters = X.Properties.VariableNames(3:7);
 
-freq = sprintf('M%s_P300_30Hzlowpassp',freql{ff});
+freq = sprintf('M%s_P300_30Hzlowpass',freql{ff});
 meg_data_name = sprintf('%s.txt',freq);
 meg = dlmread([data_path,meg_data_name]);
 
@@ -457,7 +458,7 @@ for nn = 1:14
     param_list{nn} = n;
 end
 
-datapath = sprintf('/data/MBDU/MEG_MMI3/results/mmiTrial_grid/P300/BF%s_P300_30Hzlowpassp/',freql{ff});
+datapath = sprintf('/data/MBDU/MEG_MMI3/results/mmiTrial_grid/P300/BF%s_P300_30Hzlowpass/',freql{ff});
     
 for ii = 1:length(fit_parameters)
     cd([datapath,'lme_',fit_parameters{ii}])
@@ -544,6 +545,6 @@ for ii = [1,2,3,5]%1:length(fit_parameters)
     title(sprintf('%s \npeak t-value %.1f',...
         titlename,max(abs(sourceant.pow(:)))))
     if strcmp(cfg.method,'slice')
-        saveas(gcf,sprintf('~/matlab/figures/BF_P300_30Hzlowpass_%s.png',fit_parameters{ii}))
+%         saveas(gcf,sprintf('~/matlab/figures/BF_P300_30Hzlowpass_%s.png',fit_parameters{ii}))
     end
 end

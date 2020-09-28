@@ -57,7 +57,7 @@ ft_defaults
 % tfsopt = 'm';
 % 
 gridres= 5;
-
+mu = 0.01; %mu = 0.05
 % freql=[ 4 8; 8 13; 13 25; 25 40; 40 150]; filter_type = 'but';
 % freql = [1 4]; filter_type = 'firls';
 
@@ -65,7 +65,7 @@ freqband = [25 40];
 for ii = 1:length(data_list)
     data_name = data_list{ii};
     sub = data_name(5:9);
-%     mmiPreMoodPower(data_name,roiopt,gridres,freqband); % pre mood
+    mmiPreMoodPower(data_name,roiopt,gridres,freqband,mu); % mu = 0.05
     
 end
 
@@ -157,9 +157,10 @@ for sn = 1:length(data_list)
             gridall = grid.inside;
         end
         
-        load(sprintf('pre_mood_grid_%.0f-%.0fHz',...
-            freqband(1),freqband(2)))
-        
+        load(sprintf('pre_mood_grid_%.0f-%.0fHz_mu%g',...
+            freqband(1),freqband(2),mu*100))
+%         load(sprintf('pre_mood_grid_%.0f-%.0fHz',...
+%             freqband(1),freqband(2)))
         Pmni = zeros(size(grid.inside,1),size(P,2));
         Pmni(grid.inside,:) = P;
         Pall = cat(2,Pall,Pmni);
@@ -220,9 +221,10 @@ if strcmp(roiopt,'grid')
 end
 %% Write data (grid)
 out_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_grid/pre_mood';
-dlmwrite(sprintf('%s/powergrid_%.0f-%.0fHz.txt',out_path,...
-    freqband(1),freqband(2)),Pall);
-
+% dlmwrite(sprintf('%s/powergrid_%.0f-%.0fHz.txt',out_path,...
+%     freqband(1),freqband(2)),Pall);
+dlmwrite(sprintf('%s/powergrid_%.0f-%.0fHz_mu%g.txt',out_path,...
+    freqband(1),freqband(2),mu*100),Pall);
 dlmwrite([out_path,'/mni_grid.txt'],gridall);
 writetable(ltvMood,[out_path,'/latent_vars.csv']);
  
@@ -235,8 +237,20 @@ writetable(ltvMood,[out_path,'/latent_vars.csv']);
 
 
 %% Do with with average power
-% Pall = dlmread(sprintf('%s/powergrid_%.0f-%.0fHz.txt',out_path,...
-%     freqband(1),freqband(2)));
+out_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_grid/pre_mood';
+
+ltvMood = readtable([out_path,'/latent_vars.csv']);
+
+freql=[ 25 40];
+mri_mni = ft_read_mri('~/fieldtrip-20190812/external/spm8/templates/T1.nii','dataformat','nifti');
+ftpath   = '/home/liuzzil2/fieldtrip-20190812/';
+gridres = 5;
+load(fullfile(ftpath, ['template/sourcemodel/standard_sourcemodel3d',num2str(gridres),'mm']));
+sourcemodel.coordsys = 'mni';
+
+gridall = dlmread('/data/MBDU/MEG_MMI3/results/mmiTrial_grid/pre_mood/mni_grid.txt');
+Pall = dlmread(sprintf('%s/powergrid_%.0f-%.0fHz.txt',out_path,...
+    freqband(1),freqband(2)));
 
 bestfit_name = '/data/MBDU/MEG_MMI3/data/behavioral/closed_LTA_coefs.csv';
 opts = detectImportOptions(bestfit_name);
@@ -269,7 +283,7 @@ r = zeros(1,size(Ps,1));
 pv= zeros(1,size(Ps,1));
 for n = 1:size(Ps,1)
 y =  Ps(n,:);
-x  = M0;
+x  = w_LTE;
 % p = polyfit(x,y,1);
 % yp = polyval(p,x);
 % yres = y-yp;
@@ -311,30 +325,22 @@ set(gca,'XTickLabel',{'HV';'MDD'})
 ylabel('\beta_E')
 title(sprintf('\\beta_E of HVs and MDDs are\nnot signtifcantly different'));
 
-%%
-R = zeros(size(gridall));
-R(gridall==1) =r;
-img = reshape(R,sourcemodel.dim);
-H = 2; E= 0.5;dh=0.1;C=26;
-tfce= matlab_tfce_transform(img,H,E,C,dh); % C=26 default setting
+%% 
+% cortical mask
+aal = ft_read_atlas('~/fieldtrip-20190812/template/atlas/aal/ROI_MNI_V4.nii');
+ftpath   = '/home/liuzzil2/fieldtrip-20190812/';
+load(fullfile(ftpath, ['template/sourcemodel/standard_sourcemodel3d5mm']));
+aal = ft_convert_units(aal,sourcemodel.unit);
+cfg = [];
+cfg.interpmethod = 'nearest';
+cfg.parameter = 'tissue';
+sourcemodelAAL = ft_sourceinterpolate(cfg, aal, sourcemodel);
 
-tfce_rand = cell(1,1000);
-for n = 1:1000
-    R(gridall==1) =r(randperm(length(r)));
-    img = reshape(R,sourcemodel.dim);
-    tfcer= matlab_tfce_transform(img,H,E,C,dh);
-    tfcer = tfcer(:);
-    tfce_rand{n} = max(tfcer(gridall==1));
-end
-tfce_rand = cell2mat(tfce_rand);
-tfce_rand = sort(tfce_rand(:));
-% thresh = tfce_rand(0.99*1000*nnz(gridall));
-thresh = tfce_rand(0.975*1000);
+% Plot Average power
 
 R = zeros(size(gridall));
-R(gridall==1) =r;
+R(gridall==1) =std(Ps(:,:),0,2);
 sourceant.pow  = R;
-% sourceant.pow(tfce<thresh)  = 0;
 sourceant.dim = sourcemodel.dim;
 sourceant.inside = sourcemodel.inside;
 sourceant.pos = sourcemodel.pos;
@@ -344,8 +350,115 @@ sourceout_Int  = ft_sourceinterpolate(cfg, sourceant , mri_mni);
 sourceout_Int.pow(~sourceout_Int.inside) = 0;
 sourceout_Int.coordsys = 'mni';
 
-crang = [-.45 -.3];
-% crang = [thresh max(sourceant.pow)];
+crang = [];
+% crang = [min(sourceant.pow(sourceant.pow>0)) max(sourceant.pow(:))];
+cfg = [];
+cfg.method        = 'ortho'; %'ortho'
+if max(sourceout_Int.pow(:)) > -min(sourceout_Int.pow(:))
+    cfg.location   = 'max';
+else
+    cfg.location   = 'min';
+end
+cfg.funparameter = 'pow';
+cfg.maskparameter = 'pow';
+cfg.funcolormap  = 'auto';
+cfg.funcolorlim   = crang;
+cfg.opacitylim = crang;
+cfg.atlas = '~/fieldtrip-20190812/template/atlas/aal/ROI_MNI_V4.nii';
+ft_sourceplot(cfg, sourceout_Int);
+
+X = reshape(sourcemodel.pos(:,1),sourcemodel.dim);
+Y = reshape(sourcemodel.pos(:,2),sourcemodel.dim);
+Z = reshape(sourcemodel.pos(:,3),sourcemodel.dim);
+% fv = patch(isosurface(sourcemodelAAL.tissue>0 & sourcemodelAAL.tissue<=90,0.5));
+% isonormals(sourcemodelAAL.tissue,fv)
+% fv.FaceColor = [0.5 0.5 0.5];
+% fv.EdgeColor = 'none';
+% daspect([1 1 1])
+% view(3); 
+% axis tight
+% camlight 
+% lighting gouraud
+
+[X,Y,Z] = meshgrid(1:aal.dim(2),1:aal.dim(1),1:aal.dim(3));
+fv = (isosurface(X,Y,Z,aal.tissue>0 & aal.tissue<=90,0.5));
+IN = inpolyhedron(fv,[X(:),Y(:),Z(:)]); %QPTS = Nx3
+% Plot the mask
+sourceout_Int = mri_mni;
+sourceout_Int.pow  = aal.tissue;
+% sourceout_Int.pow(aal.tissue>90 | aal.tissue<1) = 0;
+sourceout_Int.pow(aal.tissue==0) = 100;
+sourceout_Int.pow(~IN) = 0;
+sourceout_Int.coordsys = 'mni';
+sourceout_Int.inside = aal.tissue<=90 & aal.tissue>=1;
+crang = [];
+% crang = [min(sourceant.pow(sourceant.pow>0)) max(sourceant.pow(:))];
+cfg = [];
+cfg.method        = 'ortho'; %'ortho'
+cfg.funparameter = 'pow';
+cfg.maskparameter = 'inside';
+cfg.funcolormap  = 'auto';
+cfg.funcolorlim   = crang;
+cfg.opacitylim = crang;
+cfg.atlas = '~/fieldtrip-20190812/template/atlas/aal/ROI_MNI_V4.nii';
+
+ft_sourceplot(cfg, sourceout_Int);
+
+E = 0.5; %0.5  % try and change the parameters
+H = 2; %2
+dh = 0.1; 
+C =26;
+R = zeros(size(gridall));
+R(gridall==1) =r;
+R(sourcemodelAAL.tissue>90  | sourcemodelAAL.tissue==0) = 0;
+R = reshape(R,sourcemodel.dim);
+tfce= matlab_tfce_transform(R,H,E,C,dh); % C=26 default setting
+tfcen= matlab_tfce_transform(-R,H,E,C,dh); % C=26 default setting
+tfce = tfce-tfcen;
+
+Nr = 5000; % number of random iterations
+tfce_rand = cell(1,Nr);
+parfor nr = 1:Nr
+    rn = zeros(1,size(Ps,1));
+    x  = w_LTE(randperm(length(w_LTE)))';
+    for n = 1:size(Ps,1)
+        y =  Ps(n,:);
+        rn(n)=corr(x,y');
+    end
+    Rn = zeros(size(gridall));
+    Rn(gridall==1) =rn;
+    Rn(sourcemodelAAL.tissue>90 | sourcemodelAAL.tissue==0 ) = 0;
+    Rn = reshape(Rn,sourcemodel.dim);
+    tfcer= matlab_tfce_transform(Rn,H,E,C,dh);
+    tfcen= matlab_tfce_transform(-Rn,H,E,C,dh);
+    tfcer = tfcer-tfcen;
+    tfce_rand{nr} = max(tfcer(:));
+    clc
+    fprintf('Done %.0f perc.\n',nr/Nr*100)
+end  
+
+
+tfce_rand = cell2mat(tfce_rand); 
+tfce_rand = sort(tfce_rand(:));
+save(tfce_rand)
+% thresh = tfce_rand(0.99*1000*nnz(gridall));
+thresh = tfce_rand(0.99*Nr);
+
+
+sourceant.pow  = R;
+sourceant.pow(abs(tfce)<thresh)  = 0; % one tailed
+sourceant.dim = sourcemodel.dim;
+sourceant.inside = sourcemodel.inside;
+sourceant.pos = sourcemodel.pos;
+cfg = [];
+cfg.parameter = 'pow';
+sourceout_Int  = ft_sourceinterpolate(cfg, sourceant , mri_mni);
+sourceout_Int.pow(~sourceout_Int.inside) = 0;
+sourceout_Int.coordsys = 'mni';
+
+% crang = [];
+crang = [min(sourceant.pow(sourceant.pow>0)) max(sourceant.pow(:))];
+
 cfg = [];
 cfg.method        = 'ortho'; %'ortho'
 if max(sourceout_Int.pow(:)) > -min(sourceout_Int.pow(:))
@@ -362,7 +475,17 @@ cfg.atlas = '~/fieldtrip-20190812/template/atlas/aal/ROI_MNI_V4.nii';
 
 ft_sourceplot(cfg, sourceout_Int);
 
-
+[~,indP] = min(sum((sourcemodel.pos-[-2 30 0]/10).^2,2));
+indG = 1:length(gridall);
+indG = indG(gridall==1);
+indf = find(indG == indP);
+figure; set(gcf,'color','w');
+scatter(w_LTE,Ps(indf,:))
+pp = polyfit(w_LTE,Ps(indf,:),1);
+hold on
+plot(w_LTE,w_LTE*pp(1)+pp(2))
+xlabel('\beta_E'); ylabel('25-40Hz power (a.u. w''Cw/w''C_{noise}w)')
+title(sprintf('Corr. of \\beta_{E} and 25-40Hz power at ACC peak\nr = %.2f, p-value = %.1e',r(indf),pv(indf)))
 %% Plot Linear mixed effects model for grid
 out_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_grid/pre_mood';
 ltvMood = readtable([out_path,'/latent_vars.csv']);
