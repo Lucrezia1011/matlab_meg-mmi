@@ -3,11 +3,8 @@ close all
 clc
 %% Read Swarm output
 
-nrois = 116;
-data_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_aal/';
+nrois = 266;
 
-% nrois = 269;
-% data_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_sensors_prep/';
 
 param_list = cell(nrois,1);
 for nn = 1:nrois
@@ -21,7 +18,8 @@ for nn = 1:nrois
 end
 
 freq = 'evoked_outcome'; 
-% freq = 'theta_outcome'; 
+data_path = ['/data/MBDU/MEG_MMI3/results/mmiTrial_sens/',freq,'/'];
+
 
 if strcmp(freq,'evoked_choice')
     npoints = 360;
@@ -38,7 +36,7 @@ opts = detectImportOptions([data_path,latent_vars_name]);
 Xv = readtable([data_path,latent_vars_name],opts);
 
 % fit_parameters = Xv.Properties.VariableNames([3,5,7:9,11]);
-fit_parameters = Xv.Properties.VariableNames([3:10]);
+fit_parameters = Xv.Properties.VariableNames([3,5,7:10]);
 
 
 addpath /home/liuzzil2/fieldtrip-20190812/
@@ -54,23 +52,23 @@ subs = unique(Xv.subject);
 time = linspace(timew(1),timew(2),npoints);
 
 %%
-
+load('/data/MBDU/MEG_MMI3/results/mmiTrial_sens/sensors.mat')
+meg = zeros(npoints,nrois,size(Xv,1));
 if ~exist('meg','var')
-    meg = dlmread(sprintf('%s%s',data_path,meg_data_name));
-    meg = reshape(meg, npoints,nrois,size(meg,2));
-
+    for nn = 1:nrois
+        meg(:,nn,:) = dlmread(sprintf('%smeg_trials/sens_%s.txt',data_path,param_list{nn}));
+    end
     
     S = std(mean(meg,3),0,1);
     [~,ind]= sort(S,'descend');
     c= corr(mean(meg(:,ind(1:30),:),3));
-    aal_inds = {[1,4,10]; [2,3,7,8]; [5,6,9]}; % ROIs with largest variance over all trials
-    aal_inds = {c(:,1)>0.9; c(:,2)>0.9; c(:,16)>0.9};
-    
+    [coeff,score]=pca(mean(meg,3));
+    t = .92;
+    aal_inds = {c(:,1)>t; c(:,2)>t; c(:,9)>t; c(:,5)>.98; c(:,29)>.98}; % ROIs with largest variance over all trials
     figure; set(gcf,'color','w','position', [285   318   1031   808])
     for ii = 1:5
     subplot(2,5,ii); hold off
-%     inds = find(aal_inds{ii},1,'first');
-    inds = ii;
+    inds = find(aal_inds{ii},1,'first');
     ind1 = abs(Xv.RPE)>4;
     ind2 = abs(Xv.RPE)<2;
     plot(time,mean(meg(:,ind(inds),ind1),3)); % high uncertainty
@@ -86,18 +84,18 @@ if ~exist('meg','var')
         [mean(meg(:,ind(inds),ind2 ),3)+std(meg(:,ind(inds),ind2),0,3)/sqrt(nnz(ind2));...
         flipud(mean(meg(:,ind(inds),ind2 ),3)-std(meg(:,ind(inds),ind2 ),0,3)/sqrt(nnz(ind2)))],...
         [1 0 0],'facealpha',.1,'edgecolor','none')
-    axis([-.2 1 -0.4 0.7])
+    axis([-.2 1 -12e-14 12e-14])
     legend('|RPE|>4','|RPE|<2','diff','location','best')
-    title(sprintf('Surprise effect, %s',aal_labels{ind(inds)}))
+    title(sprintf('Surprise effect, %s',channels{ind(inds)}))
     grid on
     end
-    
+   
+  
     for ii = 1:5
     subplot(2,5,ii+5); hold off
-%     inds = find(aal_inds{ii},1,'first');
-    inds = ii;
+    inds = find(aal_inds{ii},1,'first');
     ind1 = (Xv.RPE)>4;
-    ind2 = (Xv.RPE)<-4;
+    ind2 = (Xv.RPE)<-1;
     plot(time,mean(meg(:,ind(inds),ind1),3)); % high uncertainty
     hold on
     plot(time,mean(meg(:,ind(inds),ind2 ),3)); % low uncertainty
@@ -111,76 +109,44 @@ if ~exist('meg','var')
         [mean(meg(:,ind(inds),ind2 ),3)+std(meg(:,ind(inds),ind2),0,3)/sqrt(nnz(ind2));...
         flipud(mean(meg(:,ind(inds),ind2 ),3)-std(meg(:,ind(inds),ind2 ),0,3)/sqrt(nnz(ind2)))],...
         [1 0 0],'facealpha',.1,'edgecolor','none')
-    axis([-.2 1 -.4 .7])
-    legend('RPE>4','RPE<-4','diff','location','best')
-    title(sprintf('Value effect, %s',aal_labels{ind(inds)}))
+    axis([-.2 1 -12e-14 12e-14])
+    legend('RPE>4','RPE<-1','diff','location','best')
+    title(sprintf('Value effect, %s',channels{ind(inds)}))
     grid on
     end
-    saveas(gcf,'~/matlab/figures/LTA_AAL.png')
-%%
-ii =44
-figure; clf
- inds = ii;
-    ind1 = (Xv.RPE)>4;
-    ind2 = (Xv.RPE)<-4;
-    plot(time,mean(meg(:,ind(inds),ind1),3)); % high uncertainty
-    hold on
-    plot(time,mean(meg(:,ind(inds),ind2 ),3)); % low uncertainty
-    plot(time,mean(meg(:,ind(inds),ind1 ),3)-...
-        mean(meg(:,ind(inds),ind2 ),3),'k')
-    fill([time,fliplr(time)],...
-        [mean(meg(:,ind(inds),ind1 ),3)+std(meg(:,ind(inds),ind1),0,3)/sqrt(nnz(ind1));...
-        flipud(mean(meg(:,ind(inds),ind1 ),3)-std(meg(:,ind(inds),ind1 ),0,3)/sqrt(nnz(ind1)))],...
-        [0 0 1],'facealpha',.1,'edgecolor','none')
-    fill([time,fliplr(time)],...
-        [mean(meg(:,ind(inds),ind2 ),3)+std(meg(:,ind(inds),ind2),0,3)/sqrt(nnz(ind2));...
-        flipud(mean(meg(:,ind(inds),ind2 ),3)-std(meg(:,ind(inds),ind2 ),0,3)/sqrt(nnz(ind2)))],...
-        [1 0 0],'facealpha',.1,'edgecolor','none')
-    axis([-.2 1 -.4 .7])
-    legend('RPE>4','RPE<-4','diff','location','best')
-    title(sprintf('Value effect, %s',aal_labels{ind(inds)}))
-    grid on
+%     saveas(gcf,'~/matlab/figures/LTAsens.png')
+    
+% %%    
+% 
 
-%%
-
-
-
-
-
-
-    for r = 1:Xv.recording(end)
-        ind = Xv.recording == r;
-        base1 = mean(mean(meg(time<0,:,ind),3),1);   
-        base2 = meg(:,:,ind);
-        meg(:,:,ind) = meg(:,:,ind) - base1;
-    end
+%     for r = 1:Xv.recording(end)
+%         ind = Xv.recording == r;
+%         base1 = mean(mean(meg(time<0,:,ind),3),1);   
+%         base2 = meg(:,:,ind);
+%         meg(:,:,ind) = meg(:,:,ind) - base1;
+%     end
 
     meg = mean(meg,3);
     meg = meg';
 
 end
 
-S = std(meg,0,2);
-[~,ind]= sort(S,'descend');
-figure; set(gcf,'color','w','position', [285   518   1031   408])
 
-c = corr(meg(ind(1:16),:)');
-subplot(131)
-inds = [1,4,10];
-plot(time,meg(ind(inds),:)');
-legend(aal_labels{ind(inds)})
-grid on; axis([-.2 1 -.3 0.6])
-inds = [2,3,7,8];
-subplot(132)
-plot(time,meg(ind(inds),:)');
-legend(aal_labels{ind(inds)})
-grid on; axis([-.2 1 -.3 0.6])
-inds = [5,6,9];
-subplot(133)
-plot(time,meg(ind(inds),:)');
-legend(aal_labels{ind(inds)})
-grid on; axis([-.2 1 -.3 0.6])
 
+cfg = [];
+cfg.channel      = channels;
+cfg.ylim         = [-1 1]*0.5e-13;
+cfg.xlim         = [-0.2 1];
+cfg.showlabels   = 'yes';
+cfg.layout       = 'CTF275_helmet.mat';
+cfg.interactive  = 'no';
+meg_plot = [];
+meg_plot.label = channels;
+meg_plot.time{1} = time;
+meg_plot.trial{1} = meg;
+wind_size =  [491  66  1030   821];
+figure(1); clf; set(gcf,'color','w','position', wind_size)
+ft_multiplotER(cfg, meg_plot); 
 
 %% Check missing
 addpath('~/matlab/matlab_compiler_test/')
@@ -189,10 +155,10 @@ command_list = [];
 for m = 1:length(fit_parameters)
 
     fit_parameter = fit_parameters{m};
-    outpath = [data_path,freq,'/lme_',fit_parameter,'/'];
+    outpath = [data_path,'/lme_',fit_parameter,'/'];
     for ii = 1:length(param_list)
         filename = sprintf('ROI_%s.csv',param_list{ii});
-        if ~exist(sprintf('%s%s/lme_%s/%s',data_path,freq,fit_parameter,filename),'file')
+        if ~exist(sprintf('%s%s',outpath,filename),'file')
             
             command_list{end+1} = {
                 meg_data_name,latent_vars_name,param_list{ii},...
@@ -215,13 +181,14 @@ for m = 1:length(fit_parameters)
     X = [];
 
     fit_parameter = fit_parameters{m};
-    cd(sprintf('%s%s/lme_%s',data_path,freq,fit_parameter))
+    cd(sprintf('%s/lme_%s',data_path,fit_parameter))
     
     for ii = 1:length(param_list)
         filename = sprintf('ROI_%s.csv',param_list{ii});
         opts = detectImportOptions(filename);
         x = readtable(filename,opts);
         x.index = x.index + (ii-1)*npoints; % adjust index
+        x.ROI = repmat(ii,npoints,1);
         X = cat(1,X,x);
     end
     Xfit{m} = X;
@@ -284,7 +251,7 @@ clusternull = cell(length(fit_parameters),1);
 condition = freq((ind+1):end);
 for m = 1:length(fit_parameters)
     fit_parameter = fit_parameters{m};
-    cd(sprintf('%s%s_%s/lme_%s',data_path,freqb,condition,fit_parameter))
+    cd(sprintf('%s/lme_%s',data_path,fit_parameter))
     if exist('ROI_permute.txt','file')
         clusternull{m} = dlmread('ROI_permute.txt');      
     end
@@ -307,13 +274,20 @@ end
 clusternull = cell2mat(clusternull);
 if isempty(clusternull)
     clusternull = cell2mat(clusteraal);
-    alpha = 0.05/116;
-   
+    M = nrois;
+    C = corr(meg');
+    lambda = eig(C);
+    % Effective number of independent variables
+    Meff = 1 + (M-1)*(1 - var(lambda)/M);
+    alpha = 1 - (1 - pv)^(1/Meff);
+  
 end
+alpha = alpha/length(fit_parameters);
 snull = sort(abs(clusternull(:)));
 Nnull = size(snull,1);
 uplim =  snull(ceil(Nnull*(1-alpha)),1);
 lowlim = -uplim;
+
 
 % positive and negative separately
 % snull = sort(clusternull);
@@ -327,7 +301,7 @@ lowlim = -uplim;
 
 % close all
 dx = 1;
-for m = 1:length(fit_parameters)
+for m = [2:3,5:length(fit_parameters)]
     
     fit_parameter = fit_parameters{m};
     X = Xfit{m};
@@ -423,4 +397,3 @@ for m = 1:length(fit_parameters)
     end
 
 end
-

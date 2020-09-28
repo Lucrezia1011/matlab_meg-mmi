@@ -4,7 +4,7 @@ clc
 %% Read Swarm output
 
 nrois = 116;
-data_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_aal/';
+data_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_aal_prep_mu5max/latent_vars_new/';
 
 % nrois = 269;
 % data_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_sensors_prep/';
@@ -38,7 +38,7 @@ opts = detectImportOptions([data_path,latent_vars_name]);
 Xv = readtable([data_path,latent_vars_name],opts);
 
 % fit_parameters = Xv.Properties.VariableNames([3,5,7:9,11]);
-fit_parameters = Xv.Properties.VariableNames([3:10]);
+fit_parameters = Xv.Properties.VariableNames([3:9]);
 
 
 addpath /home/liuzzil2/fieldtrip-20190812/
@@ -50,6 +50,10 @@ addpath('~/fieldtrip-20190812/fieldtrip_private')
 % end
 aal_labels = readcell('~/labels_AAL116_MNIv4.csv');
 
+subn = ['24071' ; '24172'; '24138'; '24103'; '23490';
+    '24213'; '24201' ; '23911'; '24208'; '24199';
+    '22695'; '22694'; '24175'; '24216'; '23732'; '23951'];
+
 subs = unique(Xv.subject);
 time = linspace(timew(1),timew(2),npoints);
 
@@ -59,128 +63,103 @@ if ~exist('meg','var')
     meg = dlmread(sprintf('%s%s',data_path,meg_data_name));
     meg = reshape(meg, npoints,nrois,size(meg,2));
 
-    
-    S = std(mean(meg,3),0,1);
-    [~,ind]= sort(S,'descend');
-    c= corr(mean(meg(:,ind(1:30),:),3));
-    aal_inds = {[1,4,10]; [2,3,7,8]; [5,6,9]}; % ROIs with largest variance over all trials
-    aal_inds = {c(:,1)>0.9; c(:,2)>0.9; c(:,16)>0.9};
-    
-    figure; set(gcf,'color','w','position', [285   318   1031   808])
-    for ii = 1:5
-    subplot(2,5,ii); hold off
-%     inds = find(aal_inds{ii},1,'first');
-    inds = ii;
-    ind1 = abs(Xv.RPE)>4;
-    ind2 = abs(Xv.RPE)<2;
-    plot(time,mean(meg(:,ind(inds),ind1),3)); % high uncertainty
-    hold on
-    plot(time,mean(meg(:,ind(inds),ind2 ),3)); % low uncertainty
-    plot(time,mean(meg(:,ind(inds),ind1 ),3)-...
-        mean(meg(:,ind(inds),ind2 ),3),'k')
-    fill([time,fliplr(time)],...
-        [mean(meg(:,ind(inds),ind1 ),3)+std(meg(:,ind(inds),ind1),0,3)/sqrt(nnz(ind1));...
-        flipud(mean(meg(:,ind(inds),ind1 ),3)-std(meg(:,ind(inds),ind1 ),0,3)/sqrt(nnz(ind1)))],...
-        [0 0 1],'facealpha',.1,'edgecolor','none')
-    fill([time,fliplr(time)],...
-        [mean(meg(:,ind(inds),ind2 ),3)+std(meg(:,ind(inds),ind2),0,3)/sqrt(nnz(ind2));...
-        flipud(mean(meg(:,ind(inds),ind2 ),3)-std(meg(:,ind(inds),ind2 ),0,3)/sqrt(nnz(ind2)))],...
-        [1 0 0],'facealpha',.1,'edgecolor','none')
-    axis([-.2 1 -0.4 0.7])
-    legend('|RPE|>4','|RPE|<2','diff','location','best')
-    title(sprintf('Surprise effect, %s',aal_labels{ind(inds)}))
-    grid on
-    end
-    
-    for ii = 1:5
-    subplot(2,5,ii+5); hold off
-%     inds = find(aal_inds{ii},1,'first');
-    inds = ii;
-    ind1 = (Xv.RPE)>4;
-    ind2 = (Xv.RPE)<-4;
-    plot(time,mean(meg(:,ind(inds),ind1),3)); % high uncertainty
-    hold on
-    plot(time,mean(meg(:,ind(inds),ind2 ),3)); % low uncertainty
-    plot(time,mean(meg(:,ind(inds),ind1 ),3)-...
-        mean(meg(:,ind(inds),ind2 ),3),'k')
-    fill([time,fliplr(time)],...
-        [mean(meg(:,ind(inds),ind1 ),3)+std(meg(:,ind(inds),ind1),0,3)/sqrt(nnz(ind1));...
-        flipud(mean(meg(:,ind(inds),ind1 ),3)-std(meg(:,ind(inds),ind1 ),0,3)/sqrt(nnz(ind1)))],...
-        [0 0 1],'facealpha',.1,'edgecolor','none')
-    fill([time,fliplr(time)],...
-        [mean(meg(:,ind(inds),ind2 ),3)+std(meg(:,ind(inds),ind2),0,3)/sqrt(nnz(ind2));...
-        flipud(mean(meg(:,ind(inds),ind2 ),3)-std(meg(:,ind(inds),ind2 ),0,3)/sqrt(nnz(ind2)))],...
-        [1 0 0],'facealpha',.1,'edgecolor','none')
-    axis([-.2 1 -.4 .7])
-    legend('RPE>4','RPE<-4','diff','location','best')
-    title(sprintf('Value effect, %s',aal_labels{ind(inds)}))
-    grid on
-    end
-    saveas(gcf,'~/matlab/figures/LTA_AAL.png')
-%%
-ii =44
-figure; clf
- inds = ii;
-    ind1 = (Xv.RPE)>4;
-    ind2 = (Xv.RPE)<-4;
-    plot(time,mean(meg(:,ind(inds),ind1),3)); % high uncertainty
-    hold on
-    plot(time,mean(meg(:,ind(inds),ind2 ),3)); % low uncertainty
-    plot(time,mean(meg(:,ind(inds),ind1 ),3)-...
-        mean(meg(:,ind(inds),ind2 ),3),'k')
-    fill([time,fliplr(time)],...
-        [mean(meg(:,ind(inds),ind1 ),3)+std(meg(:,ind(inds),ind1),0,3)/sqrt(nnz(ind1));...
-        flipud(mean(meg(:,ind(inds),ind1 ),3)-std(meg(:,ind(inds),ind1 ),0,3)/sqrt(nnz(ind1)))],...
-        [0 0 1],'facealpha',.1,'edgecolor','none')
-    fill([time,fliplr(time)],...
-        [mean(meg(:,ind(inds),ind2 ),3)+std(meg(:,ind(inds),ind2),0,3)/sqrt(nnz(ind2));...
-        flipud(mean(meg(:,ind(inds),ind2 ),3)-std(meg(:,ind(inds),ind2 ),0,3)/sqrt(nnz(ind2)))],...
-        [1 0 0],'facealpha',.1,'edgecolor','none')
-    axis([-.2 1 -.4 .7])
-    legend('RPE>4','RPE<-4','diff','location','best')
-    title(sprintf('Value effect, %s',aal_labels{ind(inds)}))
-    grid on
+% %%    
+% 
 
-%%
-
-
-
-
-
-
-    for r = 1:Xv.recording(end)
+    for r = 1:18
         ind = Xv.recording == r;
         base1 = mean(mean(meg(time<0,:,ind),3),1);   
         base2 = meg(:,:,ind);
-        meg(:,:,ind) = meg(:,:,ind) - base1;
+        meg(:,:,ind) = (meg(:,:,ind) - base1)./std(base2(:));
     end
+% 
+% %%  
+% % Cuneus 45 and paracentral lobule 69 have largest response to cue
+%     
+%     ii = 69; clf
+% %     nneg = true(size(Xv.recording)); 
+% %     npos = Xv.recording==6;
+%     nneg = Xv.E_sum>14; 
+%     npos = Xv.E_sum<14;
+%     
+%     subplot(211)
+%     plot(time, mean(meg(:,ii,npos),3))
+%     hold on
+%     plot(time, mean(meg(:,ii,nneg),3)); title(aal_labels{ii})
+%     fill([time,fliplr(time)],[mean(meg(:,ii,npos),3)+std(meg(:,ii,npos),0,3)/sqrt(nnz(npos));...
+%         flipud(mean(meg(:,ii,npos),3)-std(meg(:,ii,npos),0,3)/sqrt(nnz(npos)))],...
+%         [0 0 1],'facealpha',0.3,'edgecolor','none')
+%     fill([time,fliplr(time)],[mean(meg(:,ii,nneg),3)+std(meg(:,ii,nneg),0,3)/sqrt(nnz(nneg));...
+%         flipud(mean(meg(:,ii,nneg),3)-std(meg(:,ii,nneg),0,3)/sqrt(nnz(nneg)))],...
+%         [1 0 0],'facealpha',0.3,'edgecolor','none');
+%     %ylim([-0.7 0.7]); 
+%     grid on; legend('posititve','negative')
+%     pause(1)
+%     
+%     ii = ii+1;
+%     subplot(212)
+%      plot(time, mean(meg(:,ii,npos),3))
+%     hold on
+%     plot(time, mean(meg(:,ii,nneg),3)); title(aal_labels{ii})
+%     fill([time,fliplr(time)],[mean(meg(:,ii,npos),3)+std(meg(:,ii,npos),0,3)/sqrt(nnz(npos));...
+%         flipud(mean(meg(:,ii,npos),3)-std(meg(:,ii,npos),0,3)/sqrt(nnz(npos)))],...
+%         [0 0 1],'facealpha',0.3,'edgecolor','none')
+%     fill([time,fliplr(time)],[mean(meg(:,ii,nneg),3)+std(meg(:,ii,nneg),0,3)/sqrt(nnz(nneg));...
+%         flipud(mean(meg(:,ii,nneg),3)-std(meg(:,ii,nneg),0,3)/sqrt(nnz(nneg)))],...
+%         [1 0 0],'facealpha',0.3,'edgecolor','none');
+%     %ylim([-0.7 0.7]); 
+%     grid on; legend('positive','negative')
+%     
+% %%    
+
+% megc = meg(:,[91:end],:);
+% megc = meg(:,[43:56],:);
+% figure; clf; set(gcf,'color','white')
+% for ii = 1:13
+%     subplot(3,5,ii)
+%     megcc = megc(:,(ii-1)*2+(1:2),:);
+%     plot(time, mean(megcc,3))
+%     hold on
+%     fill([time,fliplr(time)], [mean(megcc(:,1,:),3) + std(megcc(:,1,:),0,3)/sqrt(size(megcc,3)); ...
+%         flipud(mean(megcc(:,1,:),3) - std(megcc(:,1,:),0,3)/sqrt(size(megcc,3)))],[0 0 1],'facealpha',0.2,'edgealpha',0)
+%     fill([time,fliplr(time)], [mean(megcc(:,2,:),3) + std(megcc(:,2,:),0,3)/sqrt(size(megcc,3)); ...
+%         flipud(mean(megcc(:,2,:),3) - std(megcc(:,2,:),0,3)/sqrt(size(megcc,3)))],[1 0 0],'facealpha',0.2,'edgealpha',0)
+% %     title(aal_labels{(ii-1)*2+91})
+%     title(aal_labels{(ii-1)*2+43})
+%     xlim([-0.5, 0.8]); grid on; ylim([-0.3 0.3])
+% end
 
     meg = mean(meg,3);
     meg = meg';
 
 end
 
-S = std(meg,0,2);
-[~,ind]= sort(S,'descend');
-figure; set(gcf,'color','w','position', [285   518   1031   408])
-
-c = corr(meg(ind(1:16),:)');
-subplot(131)
-inds = [1,4,10];
-plot(time,meg(ind(inds),:)');
-legend(aal_labels{ind(inds)})
-grid on; axis([-.2 1 -.3 0.6])
-inds = [2,3,7,8];
-subplot(132)
-plot(time,meg(ind(inds),:)');
-legend(aal_labels{ind(inds)})
-grid on; axis([-.2 1 -.3 0.6])
-inds = [5,6,9];
-subplot(133)
-plot(time,meg(ind(inds),:)');
-legend(aal_labels{ind(inds)})
-grid on; axis([-.2 1 -.3 0.6])
-
+% figure; set(gcf,'color','white')
+% subplot(121)
+% plot(time,meg(1,:),'LineWidth',2)
+% hold on
+% plot(time,meg([19,77,47],:))
+% plot(time,mean(meg(98:2:100,:),1),'LineWidth',2)
+% xlim([-.5, 0.8]); ylim([-.42 .42]); grid on
+% title('Left cerebrum and right cerebellum')
+% xlabel('Time (s)'); ylabel('Evoked response to choice (z-score)')
+% plot([-0.022 -0.022],[-.5 .5],'-','color',[0.5 0.5 0.5])
+% plot([0.088 0.088],[-.5 .5],'-','color',[0.5 0.5 0.5])
+% plot([0.168 0.168],[-.5 .5],'-','color',[0.5 0.5 0.5])
+% hold off
+% 
+% subplot(122)
+% plot(time,meg(2,:),'LineWidth',2)
+% hold on
+% plot(time,meg([20,78,48],:))
+% plot(time,mean(meg(97:2:99,:),1),'LineWidth',2)
+% xlim([-.5, 0.8]); ylim([-.42 .42]); grid on
+% legend('Precentral C.','Supp.Motor.C.','Thalamus','Lingual Gy.','Cerebellum','-22ms','88ms','168ms')
+% title('Right cerebrum and left cerebellum')
+% xlabel('Time (s)')
+% plot([-0.022 -0.022],[-.5 .5],'-','color',[0.5 0.5 0.5])
+% plot([0.088 0.088],[-.5 .5],'-','color',[0.5 0.5 0.5])
+% plot([0.168 0.168],[-.5 .5],'-','color',[0.5 0.5 0.5])
 
 %% Check missing
 addpath('~/matlab/matlab_compiler_test/')
@@ -189,14 +168,14 @@ command_list = [];
 for m = 1:length(fit_parameters)
 
     fit_parameter = fit_parameters{m};
-    outpath = [data_path,freq,'/lme_',fit_parameter,'/'];
+    
     for ii = 1:length(param_list)
         filename = sprintf('ROI_%s.csv',param_list{ii});
         if ~exist(sprintf('%s%s/lme_%s/%s',data_path,freq,fit_parameter,filename),'file')
             
             command_list{end+1} = {
                 meg_data_name,latent_vars_name,param_list{ii},...
-                num2str(npoints),fit_parameter,outpath};
+                num2str(npoints),fit_parameter,freq,data_path};
         end
     end
     
@@ -205,7 +184,7 @@ end
 if ~isempty(command_list)
 parfor ii = 1:length(command_list)
     minputs = command_list{ii};
-    mmi_LTA_trials_new(minputs{1},minputs{2},minputs{3},minputs{4},minputs{5},minputs{6});
+    mmi_LTA_trials_new(minputs{1},minputs{2},minputs{3},minputs{4},minputs{5},minputs{6},minputs{7});
     
 end
 end
@@ -249,32 +228,50 @@ for m = 1:length(fit_parameters)
         TFCE = tfce2d(LME);
 
         clusteraal{m}(iir,:) = TFCE';
-        % Equivalent to 
-%         [tfced] = matlab_tfce_transform(LME,2,0.5,4,0.1);   
-%         [tfcedn] = matlab_tfce_transform(-LME,2,0.5,4,0.1);   
-%         tfced = tfced - tfcedn;
+             
     end
-    fprintf('Read parameter %d/%d\n',m,length(fit_parameters))
 end
 
-
+%%
+fit_parameters([3,5,7]) = [];
+clusteraal([3,5,7]) = [];
+Xfit([3,5,7])=[];
 %% Calculate Threshold free cluster enhancement
 close all
 pv = 0.05;
 plotopt = 't';
 
-% Xv.RPE_abs = abs(Xv.RPE);
+Xv.RPE_abs = abs(Xv.RPE);
 
 M = length(fit_parameters);
 Xm = zeros(size(Xv,1),M);
 for m = 1:M
-    Xm(:,m) = Xv.(fit_parameters{m});
+    Xm(:,m) = eval(['Xv.',fit_parameters{m}]);
 end
 C = corr(Xm);
 lambda = eig(C);
 % Effective number of independent variables
 Meff = 1 + (M-1)*(1 - var(lambda)/M);
 alpha = 1 - (1 - pv)^(1/Meff);
+
+% clusternull = cell(1,length(param_list));
+% 
+% for iir = 1:length(param_list)   
+%     clusternull{iir} = dlmread(['ROI_',param_list{iir},'_permute.txt']);
+% end
+% clusternull  = cell2mat(clusternull');
+
+% Consider 2-tailed distribution
+% snull = sort(clusternull);
+% Nnull = size(snull,1);
+% lowlim = snull(floor(Nnull*alpha),2);
+% uplim =  snull(ceil(Nnull*(1-alpha)),1);
+
+% Consider 1-tailed distribution
+% snull = sort(abs(clusternull(:)));
+% Nnull = size(snull,1);
+% uplim =  snull(ceil(Nnull*(1-alpha)),1);
+% lowlim = -uplim;
 
 % cannot combine over condition, because number of trials would be different  
 % but can combine over predictor? 
@@ -285,21 +282,17 @@ condition = freq((ind+1):end);
 for m = 1:length(fit_parameters)
     fit_parameter = fit_parameters{m};
     cd(sprintf('%s%s_%s/lme_%s',data_path,freqb,condition,fit_parameter))
-    if exist('ROI_permute.txt','file')
-        clusternull{m} = dlmread('ROI_permute.txt');      
+    if exist('ROI_permute2.txt','file')
+        clusternull{m} = dlmread('ROI_permute2.txt');      
     end
-    if exist('ROI_permute','dir')
-        nullnames = dir('ROI_permute');
+    if exist('ROI_permute2','dir')
+        nullnames = dir('ROI_permute2');
         nullnames(1:2)=[];
-        clusternull2 = cell(length(nullnames),1);
+        clusternull2 = zeros(length(nullnames),2);
         for n = 1:length(nullnames)
-            if nullnames(n).bytes == 0
-                delete(['ROI_permute/',nullnames(n).name])
-            else
-                clusternull2{n} = dlmread(['ROI_permute/',nullnames(n).name]);
-            end
+            clusternull2(n,:) = dlmread(['ROI_permute2/',nullnames(n).name]);
         end
-        clusternull{m} = cat(1,clusternull{m},cell2mat(clusternull2));
+        clusternull{m} = cat(1,clusternull{m},clusternull2);
     end
     
 end
@@ -314,20 +307,15 @@ snull = sort(abs(clusternull(:)));
 Nnull = size(snull,1);
 uplim =  snull(ceil(Nnull*(1-alpha)),1);
 lowlim = -uplim;
-
-% positive and negative separately
+% 
+%%
 % snull = sort(clusternull);
 % Nnull = size(snull,1);
 % lowlim = snull(floor(Nnull*alpha),2);
 % uplim =  snull(ceil(Nnull*(1-alpha)),1);
-
-%%
-
-
-
-% close all
+close all
 dx = 1;
-for m = 1:length(fit_parameters)
+for m = [1:3,5]%1:length(fit_parameters)
     
     fit_parameter = fit_parameters{m};
     X = Xfit{m};
@@ -419,8 +407,7 @@ for m = 1:length(fit_parameters)
             
     end
     if n ~= 0
-%         saveas(gcf,sprintf('~/matlab/figures/%s_%s_final.tif',freq,fit_parameters{m}))
+        saveas(gcf,sprintf('~/matlab/figures/%s_%s_new.tif',freq,fit_parameters{m}))
     end
 
 end
-

@@ -5,11 +5,10 @@
 % n = meg row to fit (starts from 0) total npoints*nrois = 300*116 =0:34799
 % fit_parameter = name of latent variable to fit
 
-out_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_grid/pre_mood';
-meg_data_name = sprintf('%s/powergrid_25-40Hz.txt',out_path);
-% meg_data_name = sprintf('%s/powersens_25-40Hz.txt',out_path);
+out_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_grid/P300';
+meg_data_name = sprintf('%s/BFcue_P300_30Hzlowpass.txt',out_path);
 
-latent_vars_name = [out_path,'/latent_vars.csv'];
+latent_vars_name = [out_path,'/latent_vars_cue.csv'];
 
 %%
 ftpath   = '/home/liuzzil2/fieldtrip-20190812/';
@@ -18,9 +17,10 @@ load(fullfile(ftpath, ['template/sourcemodel/standard_sourcemodel3d',num2str(gri
 sourcemodel.coordsys = 'mni';
 
 
-datapath = sprintf('/data/MBDU/MEG_MMI3/results/mmiTrial_grid/pre_mood/powergrid_25-40Hz');
+datapath = sprintf('%s/BFcue_P300_30Hzlowpass',out_path);
 
-gridall = dlmread('/data/MBDU/MEG_MMI3/results/mmiTrial_grid/pre_mood/mni_grid.txt');
+gridall = dlmread('/data/MBDU/MEG_MMI3/results/mmiTrial_grid/mni_grid.txt');
+
 Te = zeros(size(gridall));
 
 param_list = cell(1,15);
@@ -35,7 +35,7 @@ for nn = 1:14
 end
 
 
-cd([datapath,'/lme_E'])
+cd([datapath,'/lme_E_LTA'])
 
 X = zeros(nnz(gridall),1);
 pV =  zeros(nnz(gridall),1);
@@ -49,38 +49,39 @@ Te(gridall==1) = X;
 %Step 2 is met: the causal variable is correlated with the mediator
 % Bonferroni
 zz = find(pV<0.05/nnz(pV));
+zz = find(pV<0.001);
 
-
-nullnames = dir('grid_permute');
-nullnames(1:2)=[];
-clusternull = zeros(length(nullnames),nnz(gridall));
-for n = 1:length(nullnames)
-    clusternull2 = dlmread(['grid_permute/',nullnames(n).name]);
-    clusternull(n,:) = clusternull2;
-end
-
-E = 0.5; %0.1  % try and change the parameters
-H = 2; %2
-dh = 0.1; 
-M = zeros(1,length(nullnames));
-for n = 1:length(nullnames)
-    clusternull2 = zeros(size(gridall));
-    clusternull2(gridall==1) = clusternull(n,:);
-    img = reshape(clusternull2,sourcemodel.dim);
-    
-    tfce= matlab_tfce_transform(img,H,E,26,dh); % C=26 default setting
-    M(n) = max(tfce(:));
-    
-end
-M = sort(M,'descend');
-thresh = M(0.05*size(clusternull,1)); % 0.01
-    
-img = reshape(Te,sourcemodel.dim);
-
-tfce= matlab_tfce_transform(img,H,E,26,dh); % C=26 default setting
-tfce = tfce(gridall==1);
-
-zz = find(tfce>thresh);
+% 
+% nullnames = dir('grid_permute');
+% nullnames(1:2)=[];
+% clusternull = zeros(length(nullnames),nnz(gridall));
+% for n = 1:length(nullnames)
+%     clusternull2 = dlmread(['grid_permute/',nullnames(n).name]);
+%     clusternull(n,:) = clusternull2;
+% end
+% 
+% E = 0.5; %0.1  % try and change the parameters
+% H = 2; %2
+% dh = 0.1; 
+% M = zeros(1,length(nullnames));
+% for n = 1:length(nullnames)
+%     clusternull2 = zeros(size(gridall));
+%     clusternull2(gridall==1) = clusternull(n,:);
+%     img = reshape(clusternull2,sourcemodel.dim);
+%     
+%     tfce= matlab_tfce_transform(img,H,E,26,dh); % C=26 default setting
+%     M(n) = max(tfce(:));
+%     
+% end
+% M = sort(M,'descend');
+% thresh = M(0.05*size(clusternull,1)); % 0.01
+%     
+% img = reshape(Te,sourcemodel.dim);
+% 
+% tfce= matlab_tfce_transform(img,H,E,26,dh); % C=26 default setting
+% tfce = tfce(gridall==1);
+% 
+% zz = find(tfce>thresh);
 
 %%
 
@@ -102,16 +103,16 @@ megdata = dlmread(meg_data_name)';
 % lme_xy = sprintf('mood ~ E + (E|subject) + (1|trial)');
 % lme_xmy = sprintf('mood ~ MEG + E +(E|subject) + (1|trial) + (-1 + MEG|recording)');
 
-lme_xm = sprintf('E ~ MEG + (1|subject) + (-1 + MEG|trial) + (-1 + MEG|recording)');
+lme_xm = sprintf('E_LTA ~ MEG + (1|subject) + (-1 + MEG|trial) + (-1 + MEG|recording)');
 lme_xy = sprintf('mood ~ MEG + (1|subject) + (-1 + MEG|trial) + (-1 + MEG|recording)');
-lme_xmy = sprintf('mood ~ MEG + E + (E|subject) + (-1 + MEG|trial) + (-1 + MEG|recording)');
+lme_xmy = sprintf('mood ~ MEG + E_LTA + (E_LTA|subject) + (-1 + MEG|trial) + (-1 + MEG|recording)');
 
 % X.mood = zscore(X.mood); % cannot z-score all together!
 % X.E = zscore(X.E);
 subs = unique(ltv.subject)';
 for s = subs
     ltv.mood(ltv.subject==s) = zscore(ltv.mood(ltv.subject==s));
-    ltv.E(ltv.subject==s) = zscore(ltv.E(ltv.subject==s));
+    ltv.E_LTA(ltv.subject==s) = zscore(ltv.E_LTA(ltv.subject==s));
 end
 %%
 M = cell(1,length(zz));
@@ -143,7 +144,7 @@ parfor z = 1:length(zz)
     LME.c = lme1.Coefficients.Estimate(2);
     LME.a = lme2.Coefficients.Estimate(2);
     LME.c1 = lme3.Coefficients.Estimate( strcmp(lme3.Coefficients.Name,'MEG'));
-    LME.b = lme3.Coefficients.Estimate( strcmp(lme3.Coefficients.Name,'E'));
+    LME.b = lme3.Coefficients.Estimate( strcmp(lme3.Coefficients.Name,'E_LTA'));
    
     
     % The value of the mediated or indirect effect estimated by taking the 
@@ -160,7 +161,7 @@ parfor z = 1:length(zz)
    
     % Sobel Test:  SE_{ab} = b^2*SEb^2 + a^2*SEa^2
     LME.SE_ab = sqrt( LME.a^2 * lme2.Coefficients.SE(2)^2 + ...
-        LME.b^2 * lme3.Coefficients.SE( strcmp(lme3.Coefficients.Name,'E'))^2 );
+        LME.b^2 * lme3.Coefficients.SE( strcmp(lme3.Coefficients.Name,'E_LTA'))^2 );
     
    
 %   The amount of mediation is called the indirect effect.   Note that the
@@ -176,7 +177,7 @@ parfor z = 1:length(zz)
 % Joint Significance of Paths a and b: Test that a and b are not zero.
 % i.e. xm_tStat & lme3.Coefficients.tStat( strcmp(lme3.Coefficients.Name,'E'))
     LME.jointSig = LME.xm_pValue<0.05 & ...
-        lme3.Coefficients.pValue( strcmp(lme3.Coefficients.Name,'E'))<0.05;
+        lme3.Coefficients.pValue( strcmp(lme3.Coefficients.Name,'E_LTA'))<0.05;
         
     M{z} = LME;
     clc
@@ -199,6 +200,7 @@ for z = 1:length(zz)
     ab(z,1) = M{z}.ab/M{z}.SE_ab;
     ab(z,2) = M{z}.jointSig;
 end
+ab(ab(:,2)==0,1)=NaN; % if not joint significance send to zero
 
 AB = zeros(size(pV));
 AB(zz) = ab(:,1);
@@ -217,7 +219,7 @@ sourceout_Int  = ft_sourceinterpolate(cfg, sourceant , mri_mni);
 sourceout_Int.pow(~sourceout_Int.inside) = 0;
 sourceout_Int.coordsys = 'mni';
 
-crang = [1.96 4];
+crang = []; %[-4 -1.96];
 % crang = [thresh max(sourceant.pow)];
 cfg = [];
 cfg.method        = 'slice'; %'ortho'

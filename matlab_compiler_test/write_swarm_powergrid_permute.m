@@ -35,7 +35,7 @@ cd ~/matlab/matlab_compiler_test
 freq = sprintf('powergrid_%.0f-%.0fHz',freql(1),freql(2));
 meg_data_name = sprintf('%s.txt',freq);
 
-N =100;% 1e3; % number of random iterations x 10
+N =900;% 1e3; % number of random iterations x 10
 
 % make a command on a new line for each parameter
 % command_list = [];    
