@@ -13,7 +13,7 @@ function mmi_LTA_powergrid_permute(meg_data_name,latent_vars_name,fit_parameter,
 
 opts = detectImportOptions(latent_vars_name);
 X = readtable(latent_vars_name,opts);
-gridin = dlmread('mni_grid.txt');
+% gridin = dlmread('mni_grid.txt');
 
 fid=fopen(meg_data_name);
 g = textscan(fid,'%s','delimiter','\n');

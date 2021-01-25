@@ -16,29 +16,24 @@ freql=[25 40];
 
 latent_vars_name = 'latent_vars.csv';
 
-data_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_grid/pre_mood/confirm/';
-gridname = [data_path,'mni_grid.txt'];
-% gridname = [data_path,'mni_grid_multiSpheres.txt'];
-
-gridall = dlmread(gridname);
+data_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_sens/pre_mood/confirm/';
 
 
 opts = detectImportOptions([data_path,latent_vars_name]);
 X = readtable([data_path,latent_vars_name],opts);
-% fit_parameters = X.Properties.VariableNames(4:5); 
-fit_parameter= 'E_sum';
+fit_parameters = X.Properties.VariableNames(3:5); 
+% fit_parameters = X.Properties.VariableNames(4); % Only do E LTA
+fit_parameter= 'E';
 
 runcompiled = ['run_',filename,'.sh'];
 compv = 'v98'; % compiler version
 
 cd ~/matlab/matlab_compiler_test
 
-freq = sprintf('powergrid_%.0f-%.0fHz_mu5',freql(1),freql(2));
-% freq = sprintf('powergrid_%.0f-%.0fHz_mu5_multiSpheres',freql(1),freql(2));
-
+freq = sprintf('powersens_%.0f-%.0fHz',freql(1),freql(2));
 meg_data_name = sprintf('%s.txt',freq);
 
-N =1e3;% 1e3; % number of random iterations x 10
+N =2.5e3; % number of random iterations x 10
 
 % make a command on a new line for each parameter
 % command_list = [];    
@@ -49,7 +44,7 @@ command_list = cell(1,N);
 % command_list = cell(1,1*N);
 
 jj = 0;
-% m = find(strcmp(fit_parameters,fit_parameter));
+m = find(strcmp(fit_parameters,fit_parameter));
 
 for nn = 1:N
     % Same random seed for all ROIs
@@ -58,14 +53,14 @@ for nn = 1:N
     jj = jj +1;
     
      command_list{jj} =  sprintf(['export MCR_CACHE_ROOT=/lscratch/$SLURM_JOB_ID;'...
-        ' cd /lscratch/$SLURM_JOBID; cp %s /lscratch/$SLURM_JOB_ID/ && ' ...
+        ' cd /lscratch/$SLURM_JOBID; ' ...
         ' cp %s%s /lscratch/$SLURM_JOB_ID/ && '...
         ' cp %s%s /lscratch/$SLURM_JOB_ID/;'...
         ' test -d /lscratch/$SLURM_JOB_ID/%s || tar -C /lscratch/$SLURM_JOB_ID -xf /usr/local/matlab-compiler/%s.tar.gz'...
         ' && ~/matlab/matlab_compiler_test/%s'...
         ' /lscratch/$SLURM_JOB_ID/%s %s %s %s %s;'...
-        ' mv grid_permute.txt %s%s/lme_%s/grid_permute/%s.txt;\n'],...
-        gridname,data_path,meg_data_name,...
+        ' mv grid_permute.txt %s%s/lme_%s/sens_permute/%s.txt;\n'],...
+        data_path,meg_data_name,...
         data_path,latent_vars_name,...
         compv,compv,runcompiled,compv,...
         meg_data_name,latent_vars_name,fit_parameter,SD,...
@@ -78,13 +73,13 @@ end
 command_list = cell2mat(command_list);
 
 % write the commands into a swarm file
-file_handle = fopen(sprintf('mmi_LTA_powergrid_permute_%s.swarm',fit_parameter),'w+');
+file_handle = fopen(sprintf('mmi_LTA_powersens_permute_%s.swarm',fit_parameter),'w+');
 % file_handle = fopen(sprintf('mmi_LTA_trials_%s_missing.swarm',freq),'w+');
 
 fprintf(file_handle,command_list);
 fclose(file_handle);
 
-out_path = sprintf('%s%s/lme_%s/grid_permute/',data_path,freq,fit_parameter);
+out_path = sprintf('%s%s/lme_%s/sens_permute/',data_path,freq,fit_parameter);
 % out_path = sprintf('%s%s/lmixmodel_%s/ROI_permute2/',data_path,freq,fit_parameter);
 
 if ~exist(out_path,'dir')
@@ -105,14 +100,14 @@ emailnote = '"--mail-type=FAIL,END"';
 % need to include lscratch! see matlab biowulf page
 mem = '2';  % gigabytes
 threads = '1'; % number of threads
-bundles = '2'; %3 % limits number of jobs running at the same time
+bundles = '20'; %3 % limits number of jobs running at the same time
 
 logfolder = '~/matlab/matlab_compiler_test/swarm_logs';
-jobid = evalc(sprintf('!swarm --job-name %s_%s --gres lscratch:10 -g %s -t %s -b %s --time 24:00:00 --logdir %s -f mmi_LTA_powergrid_permute_%s.swarm --sbatch %s --devel',...
+jobid = evalc(sprintf('!swarm --job-name %s_%s --gres lscratch:10 -g %s -t %s -b %s --time 4:00:00 --logdir %s -f mmi_LTA_powersens_permute_%s.swarm --sbatch %s --devel',...
     freq,fit_parameter,mem,threads,bundles, logfolder,fit_parameter,emailnote))
 
 % try starting swarm from a non interactive session
-fprintf('swarm --job-name %s_%s --gres lscratch:10 -g %s -t %s -b %s --time 48:00:00 --logdir %s -f mmi_LTA_powergrid_permute_%s.swarm --sbatch %s\n',...
+fprintf('swarm --job-name %s_%s --gres lscratch:10 -g %s -t %s -b %s --time 4:00:00 --logdir %s -f mmi_LTA_powersens_permute_%s.swarm --sbatch %s\n',...
     freq,fit_parameter,mem,threads,bundles, logfolder,fit_parameter,emailnote);
 
     

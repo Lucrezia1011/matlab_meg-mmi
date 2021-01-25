@@ -10,6 +10,10 @@ meg_data_name = sprintf('%s/BFcue_P300_30Hzlowpass.txt',out_path);
 
 latent_vars_name = [out_path,'/latent_vars_cue.csv'];
 
+addpath /home/liuzzil2/fieldtrip-20190812/
+ft_defaults
+addpath('~/fieldtrip-20190812/fieldtrip_private')
+
 %%
 ftpath   = '/home/liuzzil2/fieldtrip-20190812/';
 gridres = 5;
@@ -52,36 +56,87 @@ zz = find(pV<0.05/nnz(pV));
 zz = find(pV<0.001);
 
 % 
-% nullnames = dir('grid_permute');
-% nullnames(1:2)=[];
-% clusternull = zeros(length(nullnames),nnz(gridall));
-% for n = 1:length(nullnames)
-%     clusternull2 = dlmread(['grid_permute/',nullnames(n).name]);
-%     clusternull(n,:) = clusternull2;
-% end
-% 
-% E = 0.5; %0.1  % try and change the parameters
-% H = 2; %2
-% dh = 0.1; 
-% M = zeros(1,length(nullnames));
-% for n = 1:length(nullnames)
-%     clusternull2 = zeros(size(gridall));
-%     clusternull2(gridall==1) = clusternull(n,:);
-%     img = reshape(clusternull2,sourcemodel.dim);
-%     
-%     tfce= matlab_tfce_transform(img,H,E,26,dh); % C=26 default setting
-%     M(n) = max(tfce(:));
-%     
-% end
-% M = sort(M,'descend');
-% thresh = M(0.05*size(clusternull,1)); % 0.01
-%     
-% img = reshape(Te,sourcemodel.dim);
-% 
-% tfce= matlab_tfce_transform(img,H,E,26,dh); % C=26 default setting
-% tfce = tfce(gridall==1);
-% 
-% zz = find(tfce>thresh);
+nullnames = dir('grid_permute');
+nullnames(1:2)=[];
+clusternull = zeros(length(nullnames),nnz(gridall));
+nskip = [];
+for n = 1:length(nullnames)
+    if nullnames(n).bytes == 0
+        delete(['grid_permute/',nullnames(n).name]);
+        nskip = [nskip n];
+    else
+        clusternull2 = dlmread(['grid_permute/',nullnames(n).name]);
+        clusternull(n,:) = clusternull2;
+    end
+end
+clusternull(nskip,:) = [];
+
+E = 0.5; %0.1  % try and change the parameters
+H = 2; %2
+dh = 0.1; 
+clusterpeak = zeros(2,size(clusternull,1));
+% clusterpeak = zeros(nnz(gridall),size(clusternull,1));
+for n = 1:size(clusternull,1)
+    clusternull2 = zeros(size(gridall));
+    clusternull2(gridall==1) = clusternull(n,:);
+    img = reshape(clusternull2,sourcemodel.dim);
+    
+    tfce= -matlab_tfce_transform(-img,H,E,26,dh); % C=26 default setting
+    clusterpeak(1,n) = min(tfce(:));
+    tfcep= matlab_tfce_transform(img,H,E,26,dh);
+    clusterpeak(2,n) = max(tfcep(:));
+%     tfce(img>0) = tfcep(img>0);
+%     clusterpeak(:,n) = tfce(gridall==1);
+end
+figure; histogram(clusterpeak(:));
+clusterpeak = sort(clusterpeak(:),'ascend'); % find negative
+thresh = clusterpeak(round(0.01/2*size(clusterpeak,1))); % 0.01 232
+    
+img = reshape(Te,sourcemodel.dim);
+
+tfce= -matlab_tfce_transform(-img,H,E,26,dh); % C=26 default setting
+tfce = tfce(gridall==1);
+
+zz = find(tfce<thresh);
+
+
+%% Plot sigificant clusters
+img = reshape(Te,sourcemodel.dim);
+tfce= -matlab_tfce_transform(-img,H,E,26,dh); % C=26 default setting
+ind_img = tfce<thresh;
+img(~ind_img) = 0;
+mri_mni = ft_read_mri('~/fieldtrip-20190812/external/spm8/templates/T1.nii','dataformat','nifti');
+
+sourceant.pow  = img;
+sourceant.dim = sourcemodel.dim;
+sourceant.inside = sourcemodel.inside;
+sourceant.pos = sourcemodel.pos;
+cfg = [];
+cfg.parameter = 'pow';
+sourceout_Int  = ft_sourceinterpolate(cfg, sourceant , mri_mni);
+sourceout_Int.pow(~sourceout_Int.inside) = 0;
+sourceout_Int.coordsys = 'mni';
+
+crang = []; %[-4 -1.96];
+% crang = [thresh max(sourceant.pow)];
+cfg = [];
+cfg.method        = 'slice'; %'ortho'
+if max(sourceout_Int.pow(:)) > -min(sourceout_Int.pow(:))
+    cfg.location   = 'max';
+else
+    cfg.location   = 'min';
+end
+cfg.funparameter = 'pow';
+cfg.maskparameter = 'pow';
+cfg.funcolormap  = 'auto';
+cfg.funcolorlim   = crang;
+cfg.opacitylim = crang;
+cfg.atlas = '~/fieldtrip-20190812/template/atlas/aal/ROI_MNI_V4.nii';
+
+ft_sourceplot(cfg, sourceout_Int);
+cfg.method        = 'ortho'; %'ortho'
+ft_sourceplot(cfg, sourceout_Int);
+
 
 %%
 
@@ -200,7 +255,7 @@ for z = 1:length(zz)
     ab(z,1) = M{z}.ab/M{z}.SE_ab;
     ab(z,2) = M{z}.jointSig;
 end
-ab(ab(:,2)==0,1)=NaN; % if not joint significance send to zero
+ab(ab(:,2)==0,1)=0; % if not joint significance send to zero
 
 AB = zeros(size(pV));
 AB(zz) = ab(:,1);

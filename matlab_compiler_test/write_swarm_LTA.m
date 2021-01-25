@@ -48,19 +48,19 @@ end
 meg_data_name = ['meg_trials_',freq,'.txt'];
 latent_vars_name = ['latent_vars_',freq,'.csv'];
 
-data_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_aal/';
+data_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_aal/confirm/';
 
 opts = detectImportOptions([data_path,latent_vars_name]);
 X = readtable([data_path,latent_vars_name],opts);
-
+%%
 % X.RPE_abs = abs(X.RPE);
 % writetable(X,[data_path,latent_vars_name]);
 
-fit_parameters = X.Properties.VariableNames(3:9);
+fit_parameters = X.Properties.VariableNames([3,5,7]);
 % fit_parameters = X.Properties.VariableNames([4:7,10]);
 
 runcompiled = ['run_',filename,'.sh'];               
-compv = 'v96'; % compiler version
+compv = 'v98'; % compiler version
 
 cd ~/matlab/matlab_compiler_test
 command_list = cell(1,length(param_list)*length(fit_parameters));
@@ -81,9 +81,9 @@ for m = 1:length(fit_parameters)
         command_list{jj} =  sprintf(['export MCR_CACHE_ROOT=/lscratch/$SLURM_JOB_ID;'...
             '  cd /lscratch/$SLURM_JOBID; if [ -f "%s"] ;  then  echo "data already in lscratch"; ',...
             '  else cp %s%s /lscratch/$SLURM_JOB_ID/ && cp %s%s /lscratch/$SLURM_JOB_ID/; fi ;'...
-            ' test -d /lscratch/$SLURM_JOB_ID/v96 || tar -C /lscratch/$SLURM_JOB_ID -xf /usr/local/matlab-compiler/v96.tar.gz '...
+            ' test -d /lscratch/$SLURM_JOB_ID/v98 || tar -C /lscratch/$SLURM_JOB_ID -xf /usr/local/matlab-compiler/v98.tar.gz '...
             ' && ~/matlab/matlab_compiler_test/%s '...
-            ' /lscratch/$SLURM_JOB_ID/v96 %s %s %s %s %s %s \n'],...
+            ' /lscratch/$SLURM_JOB_ID/v98 %s %s %s %s %s %s \n'],...
             meg_data_name,data_path,meg_data_name,data_path,latent_vars_name,runcompiled,...
             meg_data_name,latent_vars_name,param_list{ii},npoints,fit_parameter,outpath);
     end
@@ -101,7 +101,7 @@ fclose(file_handle);
 
 
 % Try 1 instance of compiled script
-% eval(sprintf('!./%s /usr/local/matlab-compiler/v96 %s %s %s %s %s',runcompiled,meg_data_name,latent_vars_name,'002',npoints,fit_parameter))
+% eval(sprintf('!./%s /usr/local/matlab-compiler/v98 %s %s %s %s %s',runcompiled,meg_data_name,latent_vars_name,'002',npoints,fit_parameter))
 
 %% Run swarm
 clc

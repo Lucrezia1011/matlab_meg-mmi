@@ -14,12 +14,14 @@ filename = 'mmi_LTA_powergrid';
 
 %%
 
-% freql=[ 4 8; 8 13; 13 25; 25 40; 40 150]; % do delta separately
+% freql=[ 4 8; 8 13; 13 25; 25 40; 50 150]; % do delta separately
 freql = [25 40];
+% freql = [4 8];
 latent_vars_name = 'latent_vars.csv';
 
-% data_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_aal_prep_mu5max/pre_mood/';
-data_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_sens/pre_mood/';
+data_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_sens/pre_mood/confirm/';
+% data_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_sens/outcome_power/';
+
 % gridall = dlmread([data_path,'mni_grid.txt']);
 % 
 % npoints = '1000';
@@ -38,16 +40,16 @@ data_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_sens/pre_mood/';
 % end
 
 
-npoints = '266'; % 269 common channels
+npoints = '267'; % 266 common channels
 param_list{1} = '001';
 
 opts = detectImportOptions([data_path,latent_vars_name]);
 X = readtable([data_path,latent_vars_name],opts);
 % fit_parameters = X.Properties.VariableNames(3:7);
-fit_parameters = X.Properties.VariableNames([4,5,8]);
+fit_parameters = X.Properties.VariableNames(4:5);
 
 runcompiled = ['run_',filename,'.sh'];               
-compv = 'v96'; % compiler version
+compv = 'v98'; % compiler version
 
 cd ~/matlab/matlab_compiler_test
 command_list = cell(1,size(freql,1)*length(param_list)*length(fit_parameters));
@@ -74,9 +76,9 @@ for ff = 1:size(freql,1)
             command_list{jj} =  sprintf(['export MCR_CACHE_ROOT=/lscratch/$SLURM_JOB_ID;'...
                 ' cd /lscratch/$SLURM_JOBID; if [ -f "%s"] ;  then  echo "data already in lscratch"; ',...
                 ' else cp %s%s /lscratch/$SLURM_JOB_ID/ && cp %s%s /lscratch/$SLURM_JOB_ID/; fi ;'...
-                ' test -d /lscratch/$SLURM_JOB_ID/v96 || tar -C /lscratch/$SLURM_JOB_ID -xf /usr/local/matlab-compiler/v96.tar.gz '...
+                ' test -d /lscratch/$SLURM_JOB_ID/v98 || tar -C /lscratch/$SLURM_JOB_ID -xf /usr/local/matlab-compiler/v98.tar.gz '...
                 ' && ~/matlab/matlab_compiler_test/%s '...
-                ' /lscratch/$SLURM_JOB_ID/v96 %s %s %s %s %s %s;\n'], ... %' mv inds_%s.txt %s%s/lme_%s/;\n'],...
+                ' /lscratch/$SLURM_JOB_ID/v98 %s %s %s %s %s %s;\n'], ... %' mv inds_%s.txt %s%s/lme_%s/;\n'],...
                 meg_data_name,data_path,meg_data_name,data_path,latent_vars_name,runcompiled,...
                 meg_data_name,latent_vars_name,param_list{ii},npoints,fit_parameter,outpath);
                 %param_list{ii},data_path,freq,fit_parameter);
@@ -99,7 +101,7 @@ fclose(file_handle);
 
 
 % Try 1 instance of compiled script
-% eval(sprintf('!./%s /usr/local/matlab-compiler/v96 %s %s %s %s %s',runcompiled,meg_data_name,latent_vars_name,'002',npoints,fit_parameter))
+% eval(sprintf('!./%s /usr/local/matlab-compiler/v98 %s %s %s %s %s',runcompiled,meg_data_name,latent_vars_name,'002',npoints,fit_parameter))
 
 %% Run swarm
 clc
@@ -113,11 +115,11 @@ threads = '2'; % number of threads
 bundles = '1'; % limits number of jobs running at the same time
 logfolder = '~/matlab/matlab_compiler_test/swarm_logs';
 
-jobid = evalc(sprintf('!swarm --job-name lmix_powersens --gres lscratch:10 -g %s -t %s -b %s --time 01:00:00 --logdir %s -f mmi_LTA_powersens.swarm --sbatch %s --devel',...
+jobid = evalc(sprintf('!swarm --job-name lmix_powersens --gres lscratch:10 -g %s -t %s -b %s --time 01:00:00 --logdir %s -f mmi_LTA_powersens.swarm --partition=quick,norm --sbatch %s --devel',...
     mem,threads,bundles, logfolder,emailnote))
 
 % try starting swarm from a non interactive session
-fprintf('swarm --job-name lmix_powersens --gres lscratch:10 -g %s -t %s -b %s --time 01:00:00 --logdir %s -f mmi_LTA_powersens.swarm --sbatch %s\n',...
+fprintf('swarm --job-name lmix_powersens --gres lscratch:10 -g %s -t %s -b %s --time 01:00:00 --logdir %s -f mmi_LTA_powersens.swarm --partition=quick,norm  --sbatch %s\n',...
     mem,threads,bundles, logfolder,emailnote);
 
 return

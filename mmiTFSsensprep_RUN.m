@@ -347,7 +347,7 @@ end
 cfg = [];
 cfg.baseline     = 'no';%[TFScertain.time(1) TFScertain.time(end)];
 cfg.baselinetype = 'absolute';
-cfg.channel      = 'MRT21';
+cfg.channel      = {'MRT21';'MRF35';'MRF25';'MRT11';'MRT32'};
 cfg.zlim         = [-1 1]*0.3;
 cfg.xlim         = [-0.2 1];
 % cfg.showlabels   = 'yes';
@@ -355,4 +355,5 @@ cfg.xlim         = [-0.2 1];
 cfg.interactive  = 'no';
 
 figure; set(gcf,'color','w')
-ft_singleplotTFR(cfg, TFSlose); 
+ft_singleplotTFR(cfg, TFSwin_neut); 
+xlabel('Time (s)'); ylabel('Frequency (Hz)')

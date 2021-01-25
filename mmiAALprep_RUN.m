@@ -20,7 +20,22 @@ data_list = [];
 Nlist = 1:56;
 subexclude = [10,24];
 
-roiopt = 'sens'; 
+
+analy_case = 'confirm';
+roiopt = 'sens'; % running for grid
+switch roiopt
+    case 'grid'
+        subexclude = [subexclude,26,49,53];
+end
+
+switch analy_case
+    case 'confirm'
+        subexclude = [subexclude,1:12,14:16];
+    case 'explore'
+        subexclude = [subexclude,13,17:56];
+end
+
+roiopt = 'AAL'; 
 switch roiopt
     case 'AAL'
         subexclude = [subexclude,26,49,53];
@@ -52,8 +67,8 @@ twind = [-.2,1];
 %     data_name = data_list{ii};
 %     sub = data_name(5:9);
 %     processing_folder = ['/data/MBDU/MEG_MMI3/data/derivatives/sub-',sub,'/',data_name(1:end-3),'/'];
-%     save_name = [processing_folder,'evoked_outcome_AAL.mat'];
 %     mmiAALprep(data_list{ii},twind,roiopt)
+% 
 % end
 % return
 %%
@@ -74,6 +89,7 @@ if strcmp(roiopt,'sens')
     hdr = ft_read_header(data_list{1});
     channelsall = hdr.label(strcmp(hdr.chantype,'meggrad'));
 end
+time = linspace(twind(1),twind(2),360);
 
 for sn = 1:length(data_list) % all subjects with continuos recordings and latent variables
     
@@ -114,6 +130,54 @@ for sn = 1:length(data_list) % all subjects with continuos recordings and latent
 
         [~,~,ind]= intersect(channels,channelSub);
         Yout = Yout(ind,:,:);
+        
+        % Can only use this for average response (over subject or time)
+        hdr = ft_read_header(data_name);
+        cfg_neighb        = [];
+        cfg_neighb.method = 'template';%'distance';
+        cfg_neighb.channel = channelSub;
+        cfg_neighb.template = 'CTF275_neighb.mat';
+        neighbours        = ft_prepare_neighbours(cfg_neighb, hdr);
+        
+        ntrials = size(Yout,3);
+        
+        
+        T = struct;
+        T.label = channelSub;
+        T.sampleinfo = [1 size(Yout,2)];
+        T.chantype(1:length(T.label),1) = {'meggrad'    };
+        T.grad = hdr.grad;
+
+        T.trial = cell(1,ntrials);
+        for n = 1:ntrials
+            T.trial{n} = Yout(:,:,n);
+        end
+        T.time(1:ntrials) = {time};
+
+        cfg =[];
+        cfg.neighbours = neighbours;
+        cfg.channel = T.label;
+        T1 = ft_megplanar(cfg,T);
+
+        cfg =[];
+        cfg.demean = 'yes';
+        T2 = ft_combineplanar([],T1);    
+        
+        % plot to check
+        [timelock] = ft_timelockanalysis([], T);
+        [timelockp] = ft_timelockanalysis([], T2);
+        
+        subplot(1,2,1)
+        cfg = [];
+        cfg.layout = 'CTF275_helmet.mat';
+        cfg.xlim = [.1 .2];
+        cfg.zlim = [-1 1]*5e-14;
+        ft_topoplotER(cfg, timelock);
+        
+        subplot(1,2,2)
+        cfg.zlim = [0 2]*1e-13;
+        ft_topoplotER(cfg, timelockp)
+        
      end
     
     
@@ -202,6 +266,8 @@ figure; set(gcf,'color','w')
 % subplot(231); imagesc(mean(YCue,3)); caxis([-1 1]*4e-12)
 % subplot(232); imagesc(mean(YChoice,3)); caxis([-1 1]*4e-12)
 subplot(131); imagesc(mean(Yall,3)); caxis([-1 1]*.3)
+title(sprintf('Grandaverage over all subjects\n of beamformed evoked responses'))
+xlabel('timepoint'); ylabel('ROI')
 
 % YCue = YCue.*Scue;
 % YChoice = YChoice.*Schoice;
@@ -210,8 +276,8 @@ Yall = Yall.*Sout;
 % subplot(234); imagesc(mean(YCue,3)); caxis([-1 1]*4e-12)
 % subplot(235); imagesc(mean(YChoice,3)); caxis([-1 1]*4e-12)
 subplot(132); imagesc(mean(Yall,3)); caxis([-1 1]*.3)
-
-
+title(sprintf('Maximised ROI temporal\n correlation over subject'))
+xlabel('timepoint'); ylabel('ROI')
 % Flip ROIs to match each other
 % Yu = cat(2,mean(YCue,3),mean(YChoice,3),mean(YOut,3));
 Yu = mean(Yall,3);
@@ -256,7 +322,10 @@ Yall = Yall.*Sout;
 % subplot(234); imagesc(mean(YCue,3)); caxis([-1 1]*4e-12)
 % subplot(235); imagesc(mean(YChoice,3));  caxis([-1 1]*4e-12)
 subplot(133); imagesc(mean(Yall,3));  caxis([-1 1]*.3)
-
+title(sprintf('Maximised temporal correlation\n over all ROIs'))
+xlabel('timepoint'); ylabel('ROI'); 
+c = colorbar;
+c.Position = [0.93 c.Position(2:4)];
 end
 
 %% PCA evoked responses experiment
@@ -286,11 +355,24 @@ end
 
 switch roiopt
     case 'AAL'
-        Yall = permute(Yall,[2,1,3]);
-        Yall = reshape(Yall,size(Yall,1)*size(Yall,2),size(Yall,3)); % nrois * npoints * ntrials
+        if strcmp(freq,'outcome')
+            
+            Yall = permute(Yall,[2,1,3]);
+            Yall = reshape(Yall,size(Yall,1)*size(Yall,2),size(Yall,3)); % nrois * npoints * ntrials
 
-        dlmwrite(['/data/MBDU/MEG_MMI3/results/mmiTrial_aal/meg_trials_evoked_',freq,'.txt'],Yall);
-        writetable(ltv,['/data/MBDU/MEG_MMI3/results/mmiTrial_aal/latent_vars_evoked_',freq,'.csv']);
+            dlmwrite(['/data/MBDU/MEG_MMI3/results/mmiTrial_aal/confirm/meg_trials_evoked_',freq,'.txt'],Yall);
+            writetable(ltv,['/data/MBDU/MEG_MMI3/results/mmiTrial_aal/confirm/latent_vars_evoked_',freq,'.csv']);
+        else
+            subs = unique(ltv.subject);
+            Ym = zeros(size(Yall,1),size(Yall,2),length(subs));
+            for s = 1:length(subs)
+                Ym(:,:,s) = mean(Yall(:,:,ltv.subject == subs(s)),3);
+            end
+            Ym = permute(Ym,[2,1,3]);
+            Ym = reshape(Ym,size(Ym,1)*size(Ym,2),size(Ym,3)); % nrois * npoints * ntrials
+
+            dlmwrite(['/data/MBDU/MEG_MMI3/results/mmiTrial_aal/meg_trials_evoked_',freq,'.txt'],Ym);
+        end
     case 'sens'
         writetable(ltv,['/data/MBDU/MEG_MMI3/results/mmiTrial_sens/evoked_outcome/latent_vars_evoked_',freq,'.csv']);
         

@@ -13,13 +13,14 @@ filename = 'mmi_LTA_powergrid';
 
 %%
 
-dimopt = 'BF'; %'BF','M'
+dimopt = 'M'; %'BF','M'
 
 
 if strcmp(dimopt,'BF')
-    data_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_grid/P300/';
-    gridall = dlmread('/data/MBDU/MEG_MMI3/results/mmiTrial_grid/P300/mni_grid.txt');
-
+    data_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_grid/P300/confirm/';
+%     gridall = dlmread('/data/MBDU/MEG_MMI3/results/mmiTrial_grid/P300/mni_grid.txt');
+%     gridall = dlmread('/data/MBDU/MEG_MMI3/results/mmiTrial_grid/mni_grid.txt');
+    gridall = dlmread([data_path,'mni_grid.txt']);
     npoints = '1000';
     
     nrois =  ceil(nnz(gridall)/str2double(npoints));
@@ -37,10 +38,10 @@ if strcmp(dimopt,'BF')
     freql = {'cue'};
     
 elseif strcmp(dimopt,'M')
-    data_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_sens/P300/';
+    data_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_sens/P300/confirm/';
 %     freql = {'cue';'choice'};
     freql = {'cue'};
-    npoints = '266'; % 269 common channels
+    npoints = '267'; % 266 common channels
     param_list{1} = '001';
 end
 
@@ -49,10 +50,11 @@ latent_vars_name = sprintf('latent_vars_%s.csv',freql{1});
 opts = detectImportOptions([data_path,latent_vars_name]);
 X = readtable([data_path,latent_vars_name],opts);
 % fit_parameters = X.Properties.VariableNames(3:7);
-fit_parameters = X.Properties.VariableNames([5,6,8]);
+fit_parameters = X.Properties.VariableNames([5,6]);
+
 
 runcompiled = ['run_',filename,'.sh'];               
-compv = 'v96'; % compiler version, changed to 2020a, v98
+compv = 'v98'; % compiler version, changed to 2020a, v98
 compiler_path =  ['/data/liuzzil2/matlabCompiler/',filename];
 
 cd ~/matlab/matlab_compiler_test
@@ -61,8 +63,8 @@ command_list = cell(1,length(param_list)*length(fit_parameters));
 jj = 0;
 % make a command on a new line for each parameter
 for ff = 1:size(freql,1)
-%     freq = sprintf('%s%s_P300_30Hzlowpass',dimopt,freql{ff});
     freq = sprintf('%s%s_P300_30Hzlowpass',dimopt,freql{ff});
+%     freq = sprintf('%s%s_P300_30Hzlowpass_planar',dimopt,freql{ff});
     meg_data_name = sprintf('%s.txt',freq);
 
     latent_vars_name = sprintf('latent_vars_%s.csv',freql{ff});
@@ -129,7 +131,7 @@ emailnote = '"--mail-type=FAIL,END"';
 % need to include lscratch! see matlab biowulf page
 mem = '2';  % gigabytes
 threads = '2'; % number of threads
-bundles = '6'; % limits number of jobs running at the same time
+bundles = '1'; % limits number of jobs running at the same time
 logfolder = '~/matlab/matlab_compiler_test/swarm_logs';
 
 jobid = evalc(sprintf('!swarm --job-name lmix_%sP300 --gres lscratch:10 -g %s -t %s -b %s --time 01:00:00 --logdir %s -f mmi_LTA_P300.swarm --sbatch %s --devel',...

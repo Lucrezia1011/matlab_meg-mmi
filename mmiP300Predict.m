@@ -19,9 +19,31 @@ data_exclude = {'sub-24201_task-mmi3_run-1_meg.ds';...
 % exclude subject 10: did not perform task correctly
 % subject 24 : metal artefacts
 % subjects 26,49,53: no co-registration
+data_list = [];
+
+% exclude subject 10: did not perform task correctly
+% subject 24 : metal artefacts
+% subjects 26,49,53: no co-registration
 Nlist = 1:56;
-Nlist([10,24]) = [];
+subexclude = [10,24];
+
+analy_case = 'confirm';
+roiopt = 'grid'; % running for grid
+switch roiopt
+    case 'grid'
+        subexclude = [subexclude,26,49,53];
+end
+
+switch analy_case
+    case 'confirm'
+        subexclude = [subexclude,1:12,14:16];
+    case 'explore'
+        subexclude = [subexclude,13,17:56];
+end
+
+Nlist(subexclude) = []; 
 zz= 0;
+
 for sn = Nlist % all subjects with continuos recordings and latent variables
         
     sdan = num2str(meginfo.SDAN(sn));
@@ -43,7 +65,7 @@ ft_defaults
 addpath('~/fieldtrip-20190812/fieldtrip_private')
 
 %% For sensor based analysis
-load /data/MBDU/MEG_MMI3/results/mmiTrial_sens/sensors.mat
+load /data/MBDU/MEG_MMI3/results/mmiTrial_sens/P300/confirm/sensors.mat
 sensall = channels;
 
 %% For grid based analysis
@@ -53,10 +75,10 @@ data_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_aal/';
 Y = dlmread([data_path,'/meg_trials_evoked_cue.txt']);
 Y = reshape(Y, 360,116,size(Y,2));
 
-opts = detectImportOptions([data_path,'latent_vars_evoked_cue.csv']);
-Xv = readtable([data_path,'latent_vars_evoked_cue.csv'],opts);
+opts = detectImportOptions([data_path,'latent_vars_evoked_outcome.csv']);
+Xv = readtable([data_path,'latent_vars_evoked_outcome.csv'],opts);
 
-%%
+%% It's impossible to do better than this for source sign. The sensor level analysis is the confirmation
 for s = 1:length(data_list)
 %% Co-register MRI from fiducial positions
 
@@ -84,8 +106,8 @@ clear data_filt
 
 
 %% Get source localized data on the AAL for this subject
-Ym = Y(:,:,Xv.subject == str2double(sub));
-Ym = mean(Ym,3);
+subs = unique(Xv.subject);
+Ym = Y(:,:,subs == str2double(sub));
 
 %% Read events
 
@@ -259,14 +281,66 @@ for s = 1:length(data_list)
     S_cue = cat(2,S_cue,sens_cue);   
    
 end
-outpath = '/data/MBDU/MEG_MMI3/results/mmiTrial_sens/P300/';
+outpath = '/data/MBDU/MEG_MMI3/results/mmiTrial_sens/P300/confirm/';
 
 dlmwrite([outpath,'Mcue_P300_30Hzlowpass.txt'],S_cue)
 writetable(ltv_cue,[outpath,'/latent_vars_cue.csv']);
 
+
+%% Create combined table for sensor data with planar gradiometers
+
+cd(['/data/MBDU/MEG_MMI3/data/bids/sub-24071/meg/'])
+hdr = ft_read_header('sub-24071_task-mmi3_run-1_meg.ds');
+
+cfg_neighb        = [];
+cfg_neighb.method = 'template';%'distance';
+cfg_neighb.channel = channels;
+cfg_neighb.template = 'CTF275_neighb.mat';
+neighbours        = ft_prepare_neighbours(cfg_neighb, hdr);
+
+S_cue = [];
+
+for s = 1:length(data_list)
+    data_name = data_list{s};
+    sub = data_name(5:9);
+    outpath = ['/data/MBDU/MEG_MMI3/data/derivatives/sub-',sub,'/',data_name(1:end-3)];
+
+    save_name = sprintf('%s/cueP300_sens',outpath);
+
+    load(save_name)
+    ntrials = size(sens_cue,2);
+    
+    T = struct;
+    T.label = channels;
+    T.time{1} = 300;
+    T.sampleinfo = [1 1];
+    T.chantype(1:length(T.label),1) = {'meggrad'    };
+    T.grad = hdr.grad;
+
+    T.trial = cell(1,ntrials);
+    for n = 1:ntrials
+        T.trial{n} = sens_cue(:,n);
+    end
+    T.time(1:ntrials) = {1}; 
+    
+    cfg =[];
+    cfg.neighbours = neighbours;
+    cfg.channel = T.label;
+    T1 = ft_megplanar(cfg,T);
+
+    T2 = ft_combineplanar([],T1);    
+
+    S_cue = cat(2,S_cue,cell2mat(T2.trial));   
+   
+end
+outpath = '/data/MBDU/MEG_MMI3/results/mmiTrial_sens/P300/';
+
+dlmwrite([outpath,'Mcue_P300_30Hzlowpass_planar.txt'],S_cue)
+
+
 %% Create combined table for grid data
 
-gridall = dlmread('/data/MBDU/MEG_MMI3/results/mmiTrial_grid/mni_grid.txt');
+gridall = dlmread('/data/MBDU/MEG_MMI3/results/mmiTrial_grid/P300/confirm/mni_grid.txt');
 ltv_cue = [];
 
 P_cue = [];
@@ -289,7 +363,7 @@ for s = 1:length(data_list)
    
 end
 P_cue = P_cue(gridall==1,:);
-outpath = '/data/MBDU/MEG_MMI3/results/mmiTrial_grid/P300/';
+outpath = '/data/MBDU/MEG_MMI3/results/mmiTrial_grid/P300/confirm/';
 
 dlmwrite([outpath,'BFcue_P300_30Hzlowpass.txt'],P_cue)
 writetable(ltv_cue,[outpath,'/latent_vars_cue.csv']);
