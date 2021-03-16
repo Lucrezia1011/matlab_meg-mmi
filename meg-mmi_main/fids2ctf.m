@@ -4,21 +4,38 @@ function mriC = fids2ctf(mri_name,fids_name,plotOpt)
 % mriC = fids2ctf(mri_name,fids_name,plotOpt)
 %
 % mri_name :  file name of MRI in nift format
-% fids_name : fiducial position .tag file
+% fids_name : fiducial position .tag file, can be left blank if fiducial
+% coordinates are written in mri .json file
 % plotOpt  : =1 for plotting
 
 mri = ft_read_mri(mri_name,'dataformat','nifti');
-fileID = fopen(fids_name,'r');
-fids_char = fscanf(fileID,'%c');
-fclose(fileID);
 
 fids_inds = zeros(3,4);
 fids_inds(:,4) = 1;
-% 4 lines of 66 characters each
-for iF = 1:3
-    fids_inds(iF,1) = str2double(fids_char(66*iF+(18:28))); 
-    fids_inds(iF,2) = str2double(fids_char(66*iF+(30:40)));
-    fids_inds(iF,3) = str2double(fids_char(66*iF+(42:52)));
+
+if exist(fids_name,'file')
+    fileID = fopen(fids_name,'r');
+    fids_char = fscanf(fileID,'%c');
+    fclose(fileID);
+    
+    % 4 lines of 66 characters each
+    for iF = 1:3
+        fids_inds(iF,1) = str2double(fids_char(66*iF+(18:28))); 
+        fids_inds(iF,2) = str2double(fids_char(66*iF+(30:40)));
+        fids_inds(iF,3) = str2double(fids_char(66*iF+(42:52)));
+    end
+else
+    % Read fiducial coordinates from  mri json file
+    json_name = mri_name;
+    json_name(strfind(mri_name,'.nii'):end) = [];
+    json_name = strcat(json_name,'.json');
+    ft_info('reading %s\n', json_name);
+    ft_hastoolbox('jsonlab', 1);
+    json = loadjson(json_name);
+%     json = ft_struct2char(json);
+    for iF = 1:3
+        fids_inds(iF,1:3) = json.AnatomicalLandmarkCoordinates{iF,2}; % ompare with above
+    end
 end
 
 % transformation matrix

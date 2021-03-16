@@ -1,5 +1,14 @@
 function [bv_match,bv] = matchTriggers(data_name, BadSamples)
-% f = resampling frequency
+% Lucrezia Liuzzi, last updated 2021/03/15
+%
+% Matches accurate time of projector display to data triggers in mmi3 task
+% 
+% [bv_match,bv] = matchTriggers(data_name, BadSamples)
+% data_name     = name of task-mmi3 dataset (.ds)
+% BadSamples    = time samples to exclude, output of 'preproc_bids'
+% bv            = output behavioral file for checking
+% bv_match      = output structure with all correct time triggers
+% Warning: Direcotry of behavioural data currently hard-coded!! (change later)
 
 sub = data_name(5:9);
 
@@ -22,10 +31,9 @@ restt_found = 0;
 
 disp(data_name)
 
-% Read events: Double check for non proc data
-
-% pix = ft_read_data(data_name,'chanindx','UADC016');
 % Outdated way to read light pixel channel
+% pix = ft_read_data(data_name,'chanindx','UADC016');
+
 cfg = [];
 cfg.dataset = data_name;
 cfg.continuous = 'yes';
@@ -43,7 +51,7 @@ indN(BadSamples)  =false;
 samples_T = zeros(1,length(time));
 samples_T(indN) = samples_cut;
 
-% read LIGHT marker
+% read LIGHT marker (projector display time)
 ii = 0;
 event = ft_read_event(data_name);
 pix_sample = zeros(size(event));
@@ -58,7 +66,7 @@ l = 0.25*f; % Eliminates triggers separated by less than 250ms (e.g. double mark
 ii = find(d<l);
 pix_sample(ii+1) = []; % correctly identifies triggers and eliminates zeros
 
-
+% read Trigger channel in MEG data
 trig_sample = zeros(size(event,1),2);
 ii = 0;
 for tt = 1:length(event)
@@ -74,9 +82,7 @@ trig_sample = trig_sample(1:ii,:);
 if nnz(pix_sample) == 0
     warning('No LIGHT trigger detected: switching to UPPT001')
     pix_sample = trig_sample(:,1);
-else % Checks if any light triggers are missing (e.g. when participants respons faster than 200ms)
-    % for participant 24199 (pressing gamble option too quickly) trig
-    % value is = 5 instead of normal 4
+else % 
     d = diff(trig_sample);
     ii = find(d(:,1)<l & d(:,2)~= 0); % finds different triggers closer than 250ms
     
@@ -117,7 +123,7 @@ bv_rest = bv.endOfBlockText_started;
 bv_rest(isnan(bv_rest)) = [];
 %%
 
-% Check time difference between pixel and behavioral file
+% Check time difference between pixel and behavioral file (old implementation)
 %     bv_all = sort([bv_answer; bv_choice; bv_outcome; bv_mood; bv_mood_block; bv_slider; bv_slider_block; bv_rest]);
 %     if length(bv_all) >= length(pix_sample) % Checks there are no extra triggers due to slider pixel
 %     bv_timeoffset = median(bv_all(1:length(pix_sample))-pix_time); % difference in start time between the behavioral and MEG data.
@@ -129,14 +135,13 @@ bv_rest(isnan(bv_rest)) = [];
 %             warning('Using first trigger as time offset')
 %             bv_timeoffset = bv_all(1) - pix_time(1);
 
-% Aligns behavioral file and MEG with through rest trigger
+% Aligns behavioral file and MEG with rest trigger
 rest_sample = [];
 for tt = 1:length(event)
     if strcmp(event(tt).type, 'UPPT001' ) && event(tt).value == 128
         rest_sample = [rest_sample, event(tt).sample + 24]; % Average 24 sample delay
     end
 end
-
 
 if ~isempty(rest_sample)
     % Checks all combinations of rest triggers in MEG and
@@ -257,7 +262,7 @@ try
             end
             
             
-            % Rate mood
+            % Rate mood slider
             sdiff = abs(pix_time(ii) - (bv.happySlider_started-bv_timeoffset));
             [mm, jj] = min(sdiff);
             if mm < w
@@ -268,7 +273,7 @@ try
                 slider_match.mood(nn) = bv.happySlider_response(jj);
             end
             
-            % Rate mood
+            % Rate mood slider at start of block
             sdiff = abs(pix_time(ii) - (bv.blockHappySlider_started -bv_timeoffset));
             [mm, jj] = min(sdiff);
             if mm < w
@@ -280,7 +285,7 @@ try
             end
             
             
-            % Rate mood
+            % Rate mood response
             sdiff = abs(pix_time(ii) - (bv.happyText_started-bv_timeoffset));
             [mm, jj] = min(sdiff);
             if mm < w
@@ -291,7 +296,7 @@ try
                 mood_match.mood(nn) = bv.happySlider_response(jj);
             end
             
-            % Rate mood
+            % Rate mood response at start of block
             sdiff = abs(pix_time(ii) - (bv.blockHappyText_started -bv_timeoffset));
             [mm, jj] = min(sdiff);
             if mm < w
@@ -335,7 +340,7 @@ end
 cfg = [];
 cfg.dataset = data_name;
 cfg.continuous = 'yes';
-cfg.channel = {'UADC005';'UADC006';'UADC007'}; % Time channel!
+cfg.channel = {'UADC005';'UADC006';'UADC007'};
 buttons = ft_preprocessing(cfg);
 
 buttonsd = diff(buttons.trial{1}');

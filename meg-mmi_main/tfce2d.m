@@ -1,10 +1,19 @@
 function TFCE = tfce2d(Tst)
+% Lucrezia Liuzzi, last updated 2021/03/15
+% 
+% Threshold free cluster enhancements algorithm
+% Based on Smith and Nichols 2009, https://doi.org/10.1016/j.neuroimage.2008.03.061 
+% 
+% TFCE = tfce2d(Tst)
+% Tst = t-statistics map, 1d or 2d matrix
 
+% Extent and height parameters suggested in paper
 E = 0.5;
 H = 2;
+% positive values
 S=regionprops(Tst>0,'PixelIdxList','PixelList');
 TFCE = tfextent(Tst,S,E,H);
-
+% negative values
 S=regionprops(Tst<0,'PixelIdxList','PixelList');
 TFCEn = tfextent(-Tst,S,E,H);
 

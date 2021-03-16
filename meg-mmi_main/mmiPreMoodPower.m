@@ -1,40 +1,37 @@
 function mmiPreMoodPower(data_name,roiopt,gridres,freqband,mu)
-% Created August 3 2020: mmi_grid_prep_Power with new preprocessing
-% roiopt = 'grid' mni grid
-% gridres = grid resolution in mm
-% Try with 4X weights normalization next
+% Lucrezia Liuzzi, last updated 2021/03/15
+% Created 2020 August 3: mmi_grid_prep_Power with new preprocessing
+% 
+% Calculates MEG oscillatory power in 3s windows before mood rating
+% Saves oscillatory power per trial and corresponding mood model parameters
+% as .mat file
+% 
+% mmiPreMoodPower(data_name,roiopt,gridres,freqband,mu)
+% data_name = name of dataset (.ds)
+% roiopt    = 'grid' beamformer on mni grid, 'sens' sensor level
+% gridres   = grid resolution in mm (for beamformer)
+% freqband  = frequency band [low_f, high_f]
+% mu        = beamformer regularization parameter, e.g. mu=0.05 (fraction of maximum singular value of covariance)
 
-
-%% Co-register MRI from fiducial positions
-
-% LTA model latent variables:
-% EC: Expectation of certain value
-% EG: Expectation during gabling
-% Ediff: Drift rate
-% LTA: Long term average with gamma:   1/t * sum_i=1 ^t(V(i)^gamma),   cumsum(LTA.OutcomeAmount^gamma)./(1:ntrials)'
-% V_i^gamma = outcome of trial i
-% new_p = subjective winning probability
-% RPE = Reward prediction error
-% LTA_sum  = sum(LTA)
-% RPE_sum = sum(RPE)
-% log_like
-% mood_log_like
+% Warning: data path and output directory are hard-coded!
+%% Initial processing 
 
 sub = data_name(5:9);
+% data directory
 data_path = ['/data/MBDU/MEG_MMI3/data/bids/sub-',sub,'/meg/'];
 cd(data_path)
-
+% output directory
 processing_folder = ['/data/MBDU/MEG_MMI3/data/derivatives/sub-',sub,'/',data_name(1:end-3),'/'];
 
 highpass = 0.5;
 lowpass = 300;
 icaopt = 1;
 plotopt = 0;
-
+% Initial processing
 [data,BadSamples] = preproc_bids(data_name,highpass,lowpass,icaopt,plotopt);
 f = data.fsample;
 filt_order = []; % default
-
+% Filter in frequency band of interest
 data_filt = ft_preproc_bandpassfilter(data.trial{1}, data.fsample,freqband,filt_order,'but');
 
 data.trial{1} = data_filt;
@@ -50,6 +47,7 @@ clear data_filt
 % blockmood_match = bv_match.blockmood;
 tasktime = bv_match.time;
 
+% Not including initial mood rating after rest (blokmood)
 mood_sample = bv_match.ratemood.sample(bv_match.ratemood.sample~=0);
 % mood_sample = cat(2,mood_sample,bv_match.blockmood.sample(bv_match.blockmood.sample~=0));
 
@@ -64,7 +62,7 @@ trials =  bv_match.ratemood.bv_index(bv_match.ratemood.sample~=0);
 % trials = cat(2,trials,bv_match.blockmood.bv_index(bv_match.blockmood.sample~=0)-0.5);
 
 trials = trials(moodind)-12;
-
+% calculate primacy mood model parameters
 LTAvars = LTA_calc(bv);
 LTAfields = fieldnames(LTAvars,'-full');
 
@@ -73,15 +71,16 @@ for iiF  = 3:7 % E,R and M from LTA model
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+%% Sensor level
 if strcmp(roiopt,'sens')
     
     
     [datave,ttdel]= define_trials(mood_sample, data, tasktime, [0,3],0);
     ntrials = length(datave.trial);
-    %% Sensor level
+    
     datavem = cell2mat(datave.trial);
     datas = reshape(datavem,[size(datavem,1),datave.sampleinfo(1,2),ntrials]);
-    
+    % calculates variance in 3s time window
     V = squeeze(var(datas,0,2));
     mood(ttdel) = [];
     trials(ttdel) = [];
@@ -111,7 +110,7 @@ else
         mri_name = [mri_name,'.gz'];
     end
     fids_name =  ['sub-',sub,'_fiducials.tag'];
-    mri = fids2ctf(mri_name,fids_name,0);
+    mri = fids2ctf(mri_name,fids_name,0); % co-register
     
     grid =mniLeadfields(data_name,processing_folder,gridres,mri); % calculate leadfields on MNI grid
     
@@ -120,16 +119,16 @@ else
     
     icacomps = length(data.cfg.component);
     
-    C = cov(data.trial{1}');
+    C = cov(data.trial{1}'); % covariance
     E = svd(C);
     nchans = length(data.label);
     noiseC = eye(nchans)*E(end-icacomps); % ICA eliminates from 2 to 4 components
-    % Cr = C + 4*noiseC; % old normalization, worth trying
+    % Cr = C + 4*noiseC; % old normalization
     Cr = C + mu*E(1)*eye(size(C)); % 5% max singular value =~ 70*noise, standard
     
     [datave,ttdel]= define_trials(mood_sample, data, tasktime, [0,3],0);
     ntrials = length(datave.trial);
-    Ctt = zeros([size(C),ntrials]);
+    Ctt = zeros([size(C),ntrials]); % covariance per trial
     for tt=1:ntrials
         Ctt(:,:,tt) = cov(datave.trial{tt}');
     end
@@ -142,18 +141,18 @@ else
     for ii = 1:length(L)
         lf = L{ii}; % Unit 1Am
         
-        % %  G O'Neill method, equivalent to ft
+        % G O'Neill method, equivalent to fieldtrip
         [v,d] = svd(lf'/Cr*lf);
         d = diag(d);
         jj = 2;
         
         lfo = lf*v(:,jj); % Lead field with selected orientation
         
-        % depth correct
+        % no depth correction as we later divide by noise
         %     w = Cr\lfo / sqrt(lfo'/(Cr^2)*lfo) ;
-        w = Cr\lfo / (lfo'/Cr*lfo) ;
+        w = Cr\lfo / (lfo'/Cr*lfo) ; % weights
         
-        pp  = zeros(ntrials,1);
+        pp  = zeros(ntrials,1); % estimated power per voxel and time window
         for tt = 1:ntrials
             pp(tt) =  w'*Ctt(:,:,tt)*w;
         end
@@ -173,7 +172,7 @@ else
     
     save_name = sprintf('%s/pre_mood_%s_%.0f-%.0fHz_mu%.0f',...
         processing_folder,roiopt,freqband(1),freqband(2),mu*100);
-    
+    % eliminate deleted trials from mood model parameters
     mood(ttdel) = [];
     trials(ttdel) = [];
     S = repmat(sub,length(mood),1);
@@ -190,7 +189,7 @@ else
     
 end
 
-%%
+%% Plot options
 %
 % Pgrid = zeros(size(grid.inside));
 % Pgrid(grid.inside) = mean(P,2);
