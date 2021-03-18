@@ -1,5 +1,5 @@
 function mriC = fids2ctf(mri_name,fids_name,plotOpt)
-% Lucrezia Liuzzi 2020/06/29
+% Lucrezia Liuzzi, last updated 2021/03/15
 % Transform nifti mri into ctf coordinates
 % mriC = fids2ctf(mri_name,fids_name,plotOpt)
 %
