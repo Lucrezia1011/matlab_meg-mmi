@@ -1,24 +1,28 @@
 function LTAvars = LTA_calc(bv)
-
+% Calclate primacy mood model parameters and standard expectation and RPE 
+% from behavioral table
+%
+% LTAvars = LTA_calc(bv)
+% warning: hard-coded path for closed_LTA_coefs.csv
 
 % Standard model
 A = bv.outcomeAmount; % Outcome
 A(isnan(A)) = [];
 ntrials = length(A);
 
-% Only for gamble, to check for outome window, anticioation and
+% Only for gamble, to check for outome window, anticipation and
 % consumation
 Es = (bv.winAmount + bv.loseAmount )/2;
 Es(isnan(Es)) = [];
 Rs = A - Es;
 
-% LTA model
+% LTA model (aka primacy model) 
 Elta = cumsum(A)./(1:ntrials)'; % Expectation, defined by Hanna
 Elta(2:end) = Elta(1:end-1); 
 Elta(1) = 0; % or Es(1)?
 Rlta = A - Elta; % Assume RPE of first trial is A
 
-
+% coeffiecients from mood model fit
 bestfit_name = '/data/MBDU/MEG_MMI3/data/behavioral/closed_LTA_coefs.csv';
 opts = detectImportOptions(bestfit_name);
 bf_pars = readtable(bestfit_name,opts); 
@@ -26,7 +30,6 @@ bf_pars = readtable(bestfit_name,opts);
 bestfit_sub = bf_pars(bf_pars.Var1 == bv.participant(1),:);
 
 g = bestfit_sub.gamma;
-% g = .8;
 
 sumE = zeros(ntrials,1);
 sumR = zeros(ntrials,1);

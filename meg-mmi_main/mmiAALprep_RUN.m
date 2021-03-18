@@ -1,9 +1,10 @@
 % Lucrezia Liuzzi, last updated 2021/03/15
 %
-% Calculate evoked responses (lowpass 30Hz) to gamble feedback
-% Saves timecourses and corresponding mood model parameters as .mat file
+% Run mmiAALprep (if needed) and combine results from all subjects to save
+% for linear mixed model analysis
+% select exploratory, confirmatory or post-hoc analysis
 %
-% mmiAALprep(data_name,twind)
+% mmiAALprep(data_name,twind, roiopt, opt)
 % data_name = name of dataset (.ds)
 % twind     = time window in seconds [t1, t2]
 % roiopt    = 'AAL' or 'sens', beamform on AAL atlas or keep sensor array
@@ -12,6 +13,7 @@
 %             'cue'    : gamble options presentation
 %             'choice' : gamble choice selection
 % Warning: data path and output directory are hard-coded!
+
 
 clear all
 close all
@@ -77,7 +79,7 @@ end
 addpath /home/liuzzil2/fieldtrip-20190812/ % fieldtrip path
 ft_defaults
 
-twind = [-.2,1];
+twind = [-.2,1]; % for reward feedback outcome (in paper)
 condition = 'outcome';% 'outcome', 'cue' , 'choice'
 
 % Run mmiAALprep 

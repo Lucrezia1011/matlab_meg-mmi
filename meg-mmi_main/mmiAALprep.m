@@ -7,7 +7,7 @@ function mmiAALprep(data_name,twind, roiopt, opt)
 %
 % Saves timecourses and corresponding mood model parameters as .mat file
 %
-% mmiAALprep(data_name,twind)
+% mmiAALprep(data_name,twind, roiopt, opt)
 % data_name = name of dataset (.ds)
 % twind     = time window in seconds [t1, t2]
 % roiopt    = 'AAL' or 'sens', beamform on AAL atlas or keep sensor array
