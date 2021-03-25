@@ -1,6 +1,13 @@
 function [data,BadSamplesAll] = preproc_bids(data_name,highpass,lowpass,icaopt,plotopt)
-% [data,BadSamples] = preproc_bids(data_name,highpass,lowpass,icaopt)
-% icaopt = 1 to use ICA to remove eyeblinks and heartbeat
+% Pre-processing of task-mmi3 data
+% [data,BadSamplesAll] = preproc_bids(data_name,highpass,lowpass,icaopt,plotopt)
+% data_name     = dataset name (.ds)
+% highpass      = highpass frequency in Hz
+% lowpass       = lowpass frequency in Hz
+% icaopt        = 1 to use ICA to remove eyeblinks and heartbeat
+% plotopt       = 1 to plot processed MEG data
+%
+% Warning: hard-coded derivates data_path
 addpath('~/fieldtrip-20190812/fieldtrip_private')
 
 % Data header info
@@ -19,38 +26,8 @@ for iiC = 1:length(BadChannels{1})
 end
 channels(find(chanInd)) = [];
 
-%% Find large muscle artifacts
-%  
-% % With notch filter 
-% cfg = [];
-% cfg.dataset = data_name;
-% cfg.continuous = 'yes';
-% cfg.channel = channels;
-% cfg.demean = 'yes';
-% cfg.bpfilter = 'yes';
-% cfg.bpfreq = [50 150];
-% cfg.bsfilter = 'yes';
-% cfg.bsfreq = [58 62; 118 122; 178 182];
-% cfg.hilbert  = 'abs';
-% data_muscle = ft_preprocessing(cfg);
-% f = data_muscle.fsample;
-% % find muscle artefact > 4pT (arbitrary threshold)
-% % Include 0.5s either side of the artefact.
-% data_muscle.trial{1} = data_muscle.trial{1} - mean(data_muscle.trial{1},2);
-% [sampleMsl,~] = find(data_muscle.trial{1}'>4e-12);
-% sampleMsl = unique(sampleMsl);
-% warning('Found %d muscle artefacts/n',length(sampleMsl))
-% BadMsl = zeros(length(sampleMsl),f+1);
-% for iiM = 1:length(sampleMsl)
-%     BadMsl(iiM,:) = sampleMsl(iiM)+[-0.5*f:0.5*f];
-% end
-% 
-% BadMsl = unique(BadMsl(:));
-% BadMsl(BadMsl<1) = []; % no negative samples
-
-%%
+%% Finds bad data segments
  
-% With notch filter 
 cfg = [];
 cfg.dataset = data_name;
 cfg.continuous = 'yes';
@@ -58,9 +35,9 @@ cfg.channel = channels;
 cfg.demean = 'yes';
 cfg.detrend = 'no';
 cfg.bpfilter = 'no';
-cfg.bpfreq = [0.5 300];
+cfg.bpfreq = [0.5 300]; % initial filter to help with ICA
 cfg.bsfilter = 'yes';
-cfg.bsfreq = [58 62; 118 122; 178 182];
+cfg.bsfreq = [58 62; 118 122; 178 182]; % With notch filter 60Hz
 
 data = ft_preprocessing(cfg);
 f = data.fsample;
@@ -121,13 +98,9 @@ data.sampleinfo = [1 length(data.time{1})];
 % df = diff(data.trial{1},1,2);
 % figure; histogram(df(:))
 % % distribution of consecutive time points has stdev = 73.17 fT
-%%
 
-% % Baseline correct data by finding discontinuities from SQUID jumps 
-% [sampleJump,sensJump] = find(abs(diff(data.trial{1}'))>5e-12); %jumps exceeding 1pT
-% iia = ismember(sampleJump,BadSamples); % check if jumps are marked as Bad
-% sampleJump(iia,:) = [];
-% sensJump(iia,:) = [];
+%% Filter and eliminate bad segments
+
 
 % Find large SQUID jumps
 [sampleJump,sensJump] = find(abs(diff(data.trial{1}'))>100e-12); 
@@ -148,69 +121,6 @@ for iib = 1:length(indLast)-1
     
 end
 
-
-% Check jumps after linear detrend: necessary for small jumps only
-% indN = false(size(sampleJump));
-% for iS = 1:length(sensJump)
-%     tt = 1;
-%     if sampleJump(iS)<=f*tt
-%         s1 = 1:(sampleJump(iS)-1);
-%         s2 = sampleJump(iS)+(1:f*tt);
-%     elseif (sampleJump(iS)+f*tt)>data.sampleinfo(2)
-%         s1 = sampleJump(iS)+(-f*tt:-1);
-%         s2 = (sampleJump(iS)+1):data.sampleinfo(2);
-%     else
-%         s1 = sampleJump(iS)+(-f*tt:-1);
-%         s2 = sampleJump(iS)+(1:f*tt);
-%     end
-%     % detrend
-%     p = polyfit([s1,s2],data.trial{1}(sensJump(iS),[s1,s2]),1);
-%     y1 = data.trial{1}(sensJump(iS),s1) - (p(1)*s1 + p(2));
-%     y2 = data.trial{1}(sensJump(iS),s2) - (p(1)*s2 + p(2));
-%    
-%     indN(iS) = abs(mean(y1)-mean(y2))>2e-12;   
-%     if indN(iS) && plotopt
-%         figure
-%         plot(s1(1):s2(end),data.trial{1}(sensJump(iS),s1(1):s2(end)))
-%         hold on
-%         plot([s1,s2],[y1,y2])
-%         hold on
-%         plot(sampleJump(iS),[-1 1]*5e-13)
-%     end
-% end
-% 
-% sampleJump = sampleJump(indN);
-% sensJump = sensJump(indN);
-% sensJumpu = unique(sensJump);
-% 
-% for iS = 1:length(sensJumpu)
-%     sampleJumpi = sampleJump(sensJump==sensJumpu(iS));
-%     
-%     for iJ = 1:length(sampleJumpi)+1
-%         if iJ==1
-%             % First segment
-%             s1 = 1;
-%             s2 = sampleJumpi(iJ);
-%             % mean correct
-%             m1 = mean(data.trial{1}(sensJumpu(iS),s1:s2));
-%             data.trial{1}(sensJumpu(iS),s1:s2) = ...
-%                 data.trial{1}(sensJumpu(iS),s1:s2)-m1;
-%             
-%         else
-%             % Start next segment where previous one ended
-%             s1 = sampleJumpi(iJ-1)+1;   
-%             if iJ > length(sampleJumpi)
-%                 s2 = data.sampleinfo(2);
-%             else
-%                 s2 = sampleJumpi(iJ);
-%             end
-%             m1 = diff(data.trial{1}(sensJumpu(iS),[s1-1,s1]));
-%             data.trial{1}(sensJumpu(iS),s1:s2) = ...
-%                 data.trial{1}(sensJumpu(iS),s1:s2)-m1;
-%         end
-%         
-%     end
-% end
 
 sensJumpu = unique(sensJump);
 % separate channels with SQUID jumps
@@ -285,7 +195,7 @@ if plotopt == 1
     plot(data.trial{1}')
 end
 
-%%
+%% ICA
 % if ~isempty(sampleJump) 
 %     keyboard %dbcont
 % end

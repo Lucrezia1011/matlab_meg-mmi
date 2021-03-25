@@ -1,11 +1,14 @@
+% Lucrezia Liuzzi, last updated 2021/03/18
 % Made August 4th 2020
 % Based on mmi_P300_predict.m
+% Calculate 30Hz highpassed MEG signal 250-400ms after gambling options 
+% presentation. Then combine results from all subjects to 
+% save for linear mixed model analysis
+% select exploratory, confirmatory or post-hoc analysis
 
 clear all
 close all
 clc
-
-data_list = [];
 
 meginfo = readtable('~/MEG_participantsinfo.csv');
 % make a list of excluded recordings (too short <5min of data)
@@ -28,17 +31,19 @@ Nlist = 1:56;
 subexclude = [10,24];
 
 analy_case = 'confirm';
-roiopt = 'sens'; % running for grid
+roiopt = 'grid'; % running for grid
 switch roiopt
     case 'grid'
         subexclude = [subexclude,26,49,53];
 end
 
 switch analy_case
-    case 'confirm'
-        subexclude = [subexclude,1:12,14:16];
     case 'explore'
-        subexclude = [subexclude,13,17:56];
+        subexclude = [subexclude,13,17:56];  % exploratory 14 subjects
+    case 'confirm'
+        subexclude = [subexclude,1:12,14:16]; % confirmatory 37 subjects
+    case 'posthoc'
+       % all available subjects  
 end
 
 Nlist(subexclude) = []; 
@@ -65,7 +70,7 @@ ft_defaults
 addpath('~/fieldtrip-20190812/fieldtrip_private')
 
 %% For sensor based analysis
-load /data/MBDU/MEG_MMI3/results/mmiTrial_sens/P300/confirm/sensors.mat
+load(['/data/MBDU/MEG_MMI3/results/mmiTrial_sens/P300/',analy_case,'/sensors.mat'])
 sensall = channels;
 
 %% For grid based analysis
@@ -78,7 +83,7 @@ Y = reshape(Y, 360,116,size(Y,2));
 opts = detectImportOptions([data_path,'latent_vars_evoked_outcome.csv']);
 Xv = readtable([data_path,'latent_vars_evoked_outcome.csv'],opts);
 
-%% It's impossible to do better than this for source sign. The sensor level analysis is the confirmation
+%% Run over all subjects recordings
 for s = 1:length(data_list)
 %% Co-register MRI from fiducial positions
 
@@ -149,8 +154,6 @@ datavem = cell2mat(datave.trial);
 
 trials =  cue_match.bv_index(cue_match.choice~=0)-12;
 
-% do mood and expectation (all 3 types) influence the P300?
-% does not make too much sense to include RPE
 for iiF  = 1:7 % E,R and M from LTA model
     LTAvars.(LTAfields{iiF}) = LTAvars.(LTAfields{iiF})(trials);
     LTAvars.(LTAfields{iiF})(ttdel)  =[];
@@ -281,61 +284,63 @@ for s = 1:length(data_list)
     S_cue = cat(2,S_cue,sens_cue);   
    
 end
-outpath = '/data/MBDU/MEG_MMI3/results/mmiTrial_sens/P300/confirm/';
+outpath = ['/data/MBDU/MEG_MMI3/results/mmiTrial_sens/P300/',analy_case,'/'];
 
 dlmwrite([outpath,'Mcue_P300_30Hzlowpass.txt'],S_cue)
 writetable(ltv_cue,[outpath,'/latent_vars_cue.csv']);
 
 
 %% Create combined table for sensor data with planar gradiometers
+% Does not work for trial level analysis beacuase transformation changes 
+% distribution of  noise. 
 
-cd(['/data/MBDU/MEG_MMI3/data/bids/sub-24071/meg/'])
-hdr = ft_read_header('sub-24071_task-mmi3_run-1_meg.ds');
-
-cfg_neighb        = [];
-cfg_neighb.method = 'template';%'distance';
-cfg_neighb.channel = channels;
-cfg_neighb.template = 'CTF275_neighb.mat';
-neighbours        = ft_prepare_neighbours(cfg_neighb, hdr);
-
-S_cue = [];
-
-for s = 1:length(data_list)
-    data_name = data_list{s};
-    sub = data_name(5:9);
-    outpath = ['/data/MBDU/MEG_MMI3/data/derivatives/sub-',sub,'/',data_name(1:end-3)];
-
-    save_name = sprintf('%s/cueP300_sens',outpath);
-
-    load(save_name)
-    ntrials = size(sens_cue,2);
-    
-    T = struct;
-    T.label = channels;
-    T.time{1} = 300;
-    T.sampleinfo = [1 1];
-    T.chantype(1:length(T.label),1) = {'meggrad'    };
-    T.grad = hdr.grad;
-
-    T.trial = cell(1,ntrials);
-    for n = 1:ntrials
-        T.trial{n} = sens_cue(:,n);
-    end
-    T.time(1:ntrials) = {1}; 
-    
-    cfg =[];
-    cfg.neighbours = neighbours;
-    cfg.channel = T.label;
-    T1 = ft_megplanar(cfg,T);
-
-    T2 = ft_combineplanar([],T1);    
-
-    S_cue = cat(2,S_cue,cell2mat(T2.trial));   
-   
-end
-outpath = '/data/MBDU/MEG_MMI3/results/mmiTrial_sens/P300/';
-
-dlmwrite([outpath,'Mcue_P300_30Hzlowpass_planar.txt'],S_cue)
+% cd(['/data/MBDU/MEG_MMI3/data/bids/sub-24071/meg/'])
+% hdr = ft_read_header('sub-24071_task-mmi3_run-1_meg.ds');
+% 
+% cfg_neighb        = [];
+% cfg_neighb.method = 'template';%'distance';
+% cfg_neighb.channel = channels;
+% cfg_neighb.template = 'CTF275_neighb.mat';
+% neighbours        = ft_prepare_neighbours(cfg_neighb, hdr);
+% 
+% S_cue = [];
+% 
+% for s = 1:length(data_list)
+%     data_name = data_list{s};
+%     sub = data_name(5:9);
+%     outpath = ['/data/MBDU/MEG_MMI3/data/derivatives/sub-',sub,'/',data_name(1:end-3)];
+% 
+%     save_name = sprintf('%s/cueP300_sens',outpath);
+% 
+%     load(save_name)
+%     ntrials = size(sens_cue,2);
+%     
+%     T = struct;
+%     T.label = channels;
+%     T.time{1} = 300;
+%     T.sampleinfo = [1 1];
+%     T.chantype(1:length(T.label),1) = {'meggrad'    };
+%     T.grad = hdr.grad;
+% 
+%     T.trial = cell(1,ntrials);
+%     for n = 1:ntrials
+%         T.trial{n} = sens_cue(:,n);
+%     end
+%     T.time(1:ntrials) = {1}; 
+%     
+%     cfg =[];
+%     cfg.neighbours = neighbours;
+%     cfg.channel = T.label;
+%     T1 = ft_megplanar(cfg,T);
+% 
+%     T2 = ft_combineplanar([],T1);    
+% 
+%     S_cue = cat(2,S_cue,cell2mat(T2.trial));   
+%    
+% end
+% outpath = '/data/MBDU/MEG_MMI3/results/mmiTrial_sens/P300/';
+% 
+% dlmwrite([outpath,'Mcue_P300_30Hzlowpass_planar.txt'],S_cue)
 
 
 %% Create combined table for grid data
@@ -363,17 +368,17 @@ for s = 1:length(data_list)
    
 end
 P_cue = P_cue(gridall==1,:);
-outpath = '/data/MBDU/MEG_MMI3/results/mmiTrial_grid/P300/confirm/';
+outpath = ['/data/MBDU/MEG_MMI3/results/mmiTrial_grid/P300/',analy_case,'/'];
 
 dlmwrite([outpath,'BFcue_P300_30Hzlowpass.txt'],P_cue)
 writetable(ltv_cue,[outpath,'/latent_vars_cue.csv']);
 
 
 
-%%
+%% Plot average evoked response
 aal_labels = readcell('~/labels_AAL116_MNIv4.csv');
 
-cd /data/MBDU/MEG_MMI3/results/mmiTrial_aal/
+% cd /data/MBDU/MEG_MMI3/results/mmiTrial_aal/
 % meg = dlmread('meg_trials_evoked_cue.txt');
 % meg = reshape(meg,[360,116,size(meg,2)]);
 meg = Y;
@@ -412,7 +417,7 @@ ylim([-1 1]*0.5);  xlim([-.2 1]);
 xlabel('time (s)'); ylabel('average evoked response (T)')
 title('temporal cortex')
 
-%%  Plot Linear mixed effects model for sensors
+%%  Plot Linear mixed effects model T-values for sensors
 param_list{1} = '001';
 
 if ~exist('sensall','var')
@@ -470,8 +475,7 @@ for ii = 1:length(fit_parameters)
 end
 saveas(gcf,sprintf('~/matlab/figures/%s.png',freq))
 
-%%
-% Plot p-values with multiple comparison correction
+%% Plot p-values with FDR mutiple comparison correction
 figure; set(gcf,'color','w','position', [122   460   828   387])
 
 for ii = 3:4
@@ -500,7 +504,7 @@ ss = ind(p'<0.01./(length(sensall):-1:1));
 megs = meg(ss,:);
 
 
-%% Plot Linear mixed effects model for grid
+%% Read Linear mixed effects model for grid
 
 mri_mni = ft_read_mri('~/fieldtrip-20190812/external/spm8/templates/T1.nii','dataformat','nifti');
 ftpath   = '/home/liuzzil2/fieldtrip-20190812/';
@@ -548,8 +552,7 @@ for ii = 1:length(fit_parameters)
     pV{ii} = pv;
 end
 
-%% Plot pValue
-freq = sprintf('BF%s_P300_30Hzlowpass',freql{ff});
+%% Plot pValues
 % meg_data_name = sprintf('%s.txt',freq);
 % meg = dlmread([data_path,meg_data_name]);
 % 
@@ -580,8 +583,8 @@ for ii = [1,2,3,5] %[1,3,4]
     
     title(sprintf('%s: p-value of %.0f sensors < 0.05 (FDR)',fit_parameters{ii},N))
 end
-%% Plot grid
-freq = 1;
+%% Plot Linear mixed effects model for grid
+
 for ii = [1,2,3,5]%1:length(fit_parameters)
     sourceant =[];
     

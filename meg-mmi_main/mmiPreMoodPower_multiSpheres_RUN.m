@@ -1,6 +1,20 @@
+% Lucrezia Liuzzi, last updated 2021/03/18
+%
+% Run mmiPreMoodPower_multiSpheres (if needed) and combine results from all 
+% subjects to save for linear mixed model analysis
+% post-hoc analysis in supplementary material
+%
+% mmiPreMoodPower_multiSpheres(data_name,roiopt,gridres,freqband,mu)
+% data_name = name of dataset (.ds)
+% roiopt    = 'grid' beamformer on mni grid, 'sens' sensor level
+% gridres   = grid resolution in mm (for beamformer)
+% freqband  = frequency band [low_f, high_f]
+% mu        = beamformer regularization parameter, e.g. mu=0.05 (fraction of maximum singular value of covariance)
+
+
 clear all
 close all
-% clc
+
 meginfo = readtable('~/MEG_participantsinfo.csv');
 % make a list of excluded recordings (too short <5min of data)
 data_exclude = {'sub-24201_task-mmi3_run-1_meg.ds';...
@@ -27,7 +41,7 @@ end
 
 Nlist(subexclude) = []; 
 zz= 0;
-for sn = Nlist %[1:6,8,9,14] % all subjects with continuos recordings and latent variables
+for sn = Nlist 
         
     sdan = num2str(meginfo.SDAN(sn));
     cd(['/data/MBDU/bids/meg_mmi3/sub-',sdan,'/meg'])
@@ -43,69 +57,34 @@ for sn = Nlist %[1:6,8,9,14] % all subjects with continuos recordings and latent
    
 end
 
-%%
-% roiopt = 'g' guassian weighting
-% roiopt = 'c' centroid
+%% Run mmiPreMoodPower_multiSpheres
 addpath /home/liuzzil2/fieldtrip-20190812/
 ft_defaults
-% addpath('~/fieldtrip-20190812/fieldtrip_private')
-% addpath ~/ppyll1/matlab/svdandpca
-% 
-% % roiopt = 'c';
-% roiopt = 'grid';
-% % tfsopt = 'pwelch';
-% tfsopt = 'm';
-% 
+
 gridres= 5;
 % mu = 0.002; %saved as mu 0 
 mu = 0.05; %mu=0.01
-% freql=[ 4 8; 8 13; 13 25; 25 40; 40 150]; filter_type = 'but';
-% freql = [1 4]; filter_type = 'firls';
 
 freqband = [25 40]; 
-% freqband = [40 100]; 
-for ii = [1:length(data_list)]
+
+for ii = 1:length(data_list)
     data_name = data_list{ii};
     sub = data_name(5:9);
-%     mmiPreMoodPower(data_name,roiopt,gridres,freqband,mu); % mu = 0.05 
     mmiPreMoodPower_multiSpheres(data_name,roiopt,gridres,freqband,mu); % mu = 0.05 
 end
 
-%
-% 
-% if strcmp(roiopt,'grid') || strcmp(roiopt,'sens')
-%     for freq = 1:size(freql,1)
-%         for ii = 1:length(data_list)       
-%             mmiPreMoodPower(data_list{ii},roiopt,gridres,freql(freq,:)); % pre mood
-% %             mmi_grid_prep_PowerITI(param_list{ii},roiopt,gridres,freql(freq,:))
-% %             mmi_grid_prep_Power(param_list{ii},roiopt,gridres,freql(freq,:)) % pre mood
-% %             mmi_grid_prep_PowerA(param_list{ii},roiopt,gridres,freql(freq,:),filter_type)
-% %             % anticipation period          
-%         end
-%     end    
-% else
-%     for ii = 1:length(data_list)
-%         mmi_grid_prep(data_list{ii},roiopt,gridres,tfsopt)
-%     end
-% end
-
-% resave ltv variables from delta
 
 return
 
-%%
+%% Combine data from all subjects
 Pall = [];
 
 ltvMood = [];
-% 11,12 (sub 22695)   58,59 sub(23927)
-for sn = 1:length(data_list)
-    
+for sn = 1:length(data_list)   
     
     data_name = data_list{sn};
     sub = data_name(5:9);
     data_path = ['/data/MBDU/MEG_MMI3/data/derivatives/sub-',sub,'/',data_name(1:end-3)];
-    
-    
     
     cd(data_path)
     clear grid
@@ -121,14 +100,10 @@ for sn = 1:length(data_list)
     
     load(sprintf('pre_mood_grid_%.0f-%.0fHz_mu%g_multiSpheres',...
         freqband(1),freqband(2),mu*100))
-    %         load(sprintf('pre_mood_grid_%.0f-%.0fHz',...
-    %             freqband(1),freqband(2)))
-%     P = (P - mean(P(:))) / std(P(:));
     Pmni = zeros(size(grid.inside,1),size(P,2));
     Pmni(grid.inside,:) = P;
     Pall = cat(2,Pall,Pmni);
-    
-    
+       
     ltvmood.recording = repmat(sn,size(ltvmood,1),1);
     if isempty(ltvMood)
         ltvMood = ltvmood;
@@ -148,14 +123,11 @@ end
 
 %% Write data (grid)
 out_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_grid/pre_mood';
-% dlmwrite(sprintf('%s/powergrid_%.0f-%.0fHz.txt',out_path,...
-%     freqband(1),freqband(2)),Pall);
 dlmwrite(sprintf('%s/powergrid_%.0f-%.0fHz_mu%g_multiSpheres.txt',out_path,...
     freqband(1),freqband(2),mu*100),Pall);
 dlmwrite([out_path,'/mni_grid_multiSpheres.txt'],gridall);
-% writetable(ltvMood,[out_path,'/latent_vars.csv']);
+% writetable(ltvMood,[out_path,'/latent_vars.csv']); % already saved in mmiPreMoodPower_RUN.m
  
-
 %%
 
 % mmiPreMoodPower_plotGrid.m
@@ -339,27 +311,6 @@ for p =  2
     % then the TFCE image is simply thresholded at this level to give inference 
     % at the p<0.05 (corrected) level."
     
-%     nperms = 1e4;
-%     M = zeros(1,length(nullnames));
-%     T = sourceant.pow(gridall==1);
-%     for n = 1:nperms
-%         clusternull2 = zeros(size(gridall));
-%         clusternull2(gridall==1) = T(randperm(nnz(gridall)));
-% 
-%         img = reshape(clusternull2,sourcemodel.dim);
-% 
-%         tfce = matlab_tfce_transform(img,H,E,26,dh); % C=26 default setting
-%         tfce = sort(tfce(:),'descend');
-%         M(n) = max(tfce(:));
-%         if mod(n,100)==0
-%             clc
-%             fprintf('Done %.0f perc.\n',n/nperms*1e2)
-%         end
-%     end
-%     M = sort(M,'descend');
-%     thresh = M(round(0.05*nperms)); %mu=0.2% thresh=796.9783
-    
-    
     img = reshape(sourceant.pow,sourcemodel.dim);
 
     tfce= matlab_tfce_transform(img,H,E,26,dh); % C=26 default setting
@@ -419,9 +370,7 @@ for p =  2
 end
 
 
-
-
-%% Plot average power
+%% Plot average power from all source models tested in supplementary material
 for mu = [1,4]%1:4
 switch mu
     case 1
