@@ -1,8 +1,12 @@
+% Lucrezia Liuzzi, last updated 2021/03/25
+% 30Hz highpassed MEG signal 250-400ms after gambling options presentation. 
+% Plot results from sensor level analysis
+
 addpath /home/liuzzil2/fieldtrip-20190812/
 ft_defaults
 addpath('~/fieldtrip-20190812/fieldtrip_private')
 
-%%  Plot Linear mixed effects model for sensors
+%% Load data   
 param_list{1} = '001';
 data_path = '/data/MBDU/MEG_MMI3/results/mmiTrial_sens/P300/confirm/';
 
@@ -21,7 +25,8 @@ fit_parameters = X.Properties.VariableNames(5:6);
 
 freq = sprintf('M%s_P300_30Hzlowpass',freql{ff});
 % It does not work with planar gradiometers. Results completely different
-% from model with original axial data.
+% from model with original axial data. Planar gradiometer transform changes
+% distribution of noise and cannot be used for trial-level analysis.
 % freq = sprintf('M%s_P300_30Hzlowpass_planar',freql{ff});
 % fit_parameters = X.Properties.VariableNames([5,6,8]);
 
@@ -32,7 +37,6 @@ meg = dlmread([data_path,meg_data_name]);
 outpath = sprintf('%s%s/',data_path,freq);
 nn =1;
 
-% including trials where no choice was made lowers significance
 Tfit = cell(1,length(fit_parameters));
 pfit = cell(1,length(fit_parameters));
 for ii = 1:length(fit_parameters)
@@ -110,15 +114,15 @@ colorbar
 clusternull = cell(1,2);
 
 cd([outpath,'/lme_E_LTA/'])
-
-nullnames = dir('sens_permute');
-nullnames(1:2)=[];
-% Delete empty data
-for n = 1:length(nullnames)
-    if nullnames(n).bytes == 0
-        delete(['sens_permute/',nullnames(n).name])
-    end
-end
+% 
+% nullnames = dir('sens_permute');
+% nullnames(1:2)=[];
+% % Delete empty data
+% for n = 1:length(nullnames)
+%     if nullnames(n).bytes == 0
+%         delete(['sens_permute/',nullnames(n).name])
+%     end
+% end
 nullnames = dir('sens_permute');
 nullnames(1:2)=[];
 
@@ -132,14 +136,14 @@ figure; histogram(clusternull{1}(:))
 
 cd([outpath,'/lme_E_sum/'])
 
-nullnames = dir('sens_permute');
-nullnames(1:2)=[];
-% Delete empty data
-for n = 1:length(nullnames)
-    if nullnames(n).bytes == 0
-        delete(['sens_permute/',nullnames(n).name])
-    end
-end
+% nullnames = dir('sens_permute');
+% nullnames(1:2)=[];
+% % Delete empty data
+% for n = 1:length(nullnames)
+%     if nullnames(n).bytes == 0
+%         delete(['sens_permute/',nullnames(n).name])
+%     end
+% end
 
 nullnames = dir('sens_permute');
 nullnames(1:2)=[];
@@ -175,7 +179,7 @@ end
 % saveas(gcf,sprintf('~/matlab/figures/%s_pvalue.png',freq))
 
 %% Clustering of random permutations
-% Read data header from one subject to obtain sensot positions
+% Read data header from one subject to obtain sensors positions
 cd(['/data/MBDU/MEG_MMI3/data/bids/sub-24071/meg/'])
 hdr = ft_read_header('sub-24071_task-mmi3_run-1_meg.ds');
 
@@ -190,7 +194,7 @@ for n = 1:length(neighbours)
 end
 
 
-% Declerad to use 2-tailed t-test with 2,000 randperms
+% Declared in pre-reg to use 2-tailed t-test with 2,000 randperms
 E = 0.5; %0.5  % try and change the parameters
 H = 2; %2
 dh = 0.1;
