@@ -1,5 +1,5 @@
 function mriC = fids2ctf(mri_name,fids_name,plotOpt)
-% Lucrezia Liuzzi 2020/06/29
+% Lucrezia Liuzzi, last updated 2021/03/15
 % Transform nifti mri into ctf coordinates
 % mriC = fids2ctf(mri_name,fids_name,plotOpt)
 %
@@ -33,8 +33,10 @@ else
     ft_hastoolbox('jsonlab', 1);
     json = loadjson(json_name);
 %     json = ft_struct2char(json);
-    for iF = 1:3
-        fids_inds(iF,1:3) = json.AnatomicalLandmarkCoordinates{iF,2}; % ompare with above
+    for iF = 1:3 %loop over 3 fiducial markers
+        for ix = 1:3 % loop over x,y,z
+            fids_inds(iF,ix) = str2double(json.AnatomicalLandmarkCoordinates{iF}(ix+1)); % ompare with above
+        end
     end
 end
 

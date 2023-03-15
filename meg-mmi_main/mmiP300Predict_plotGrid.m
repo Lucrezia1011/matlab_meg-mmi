@@ -1,8 +1,12 @@
+% Lucrezia Liuzzi, last updated 2021/03/25
+% 30Hz highpassed MEG signal 250-400ms after gambling options presentation. 
+% Plot results from source level analysis
+
 addpath /home/liuzzil2/fieldtrip-20190812/
 ft_defaults
 addpath('~/fieldtrip-20190812/fieldtrip_private')
 
-%% Plot Linear mixed effects model for grid
+%% Load data and set parameters
 
 mri_mni = ft_read_mri('~/fieldtrip-20190812/external/spm8/templates/T1.nii','dataformat','nifti');
 ftpath   = '/home/liuzzil2/fieldtrip-20190812/';
@@ -21,6 +25,7 @@ fit_parameters = X.Properties.VariableNames(5:6);
 % gridall = dlmread('/data/MBDU/MEG_MMI3/results/mmiTrial_grid/mni_grid.txt');
 gridall = dlmread([data_path,'mni_grid.txt']);
 
+% Parameters for TFCE
 E = 0.5; %0.5  % try and change the parameters
 H = 2; %2
 dh = 0.1;
@@ -33,7 +38,6 @@ alpha = 0.05;
 % Ranperms for E and E_sum, mu = 0.05 only
 
 datapath = sprintf('%sBF%s_P300_30Hzlowpass/',data_path,freql{ff});
- 
  
 clusternull = cell(1,2);
 for fitpar = 1:2
@@ -96,15 +100,12 @@ plot(threshn*[1 1],[0 size(clusternull,1)/2],'r')
 plot(threshp*[1 1],[0 size(clusternull,1)/2],'r')
 
 
-%% Read data
+%% Read results of mixed effects model
 clear T pV
 T(1:length(fit_parameters)) = {zeros(size(gridall))};
 pV(1:length(fit_parameters)) = {zeros(size(gridall))};
-
-% T = cell(1,length(fit_parameters));
-% T = cell(1,length(fit_parameters));
-
 param_list = cell(1,15);
+
 for nn = 1:15
     n = num2str(nn);
     if size(n,2) == 1
@@ -132,14 +133,12 @@ end
 
 
 for ii = 1:2
-%     [mxt,mxii] = max(T{ii});
-%     fprintf('Peak t-values for %s:\nt-value=%.2f, p-value=%e\n',fit_parameters{ii},mxt,pV{ii}(mxii))
-    [mxt,mxii] = min(T{ii});
+    [mxt,mxii] = min(T{ii}); % peaks are negative
     fprintf('Peak t-values for %s:\nt-value=%.2f, p-value=%e\n',fit_parameters{ii},mxt,pV{ii}(mxii))
 end
 
 
-%% Plot pValue
+%% Plot pValues with FDR correction
 freq = sprintf('BF%s_P300_30Hzlowpass',freql{ff});
 % meg_data_name = sprintf('%s.txt',freq);
 % meg = dlmread([data_path,meg_data_name]);
@@ -190,28 +189,7 @@ for ii = 1:2
     % against that. Once the 95th percentile in the null distribution is found 
     % then the TFCE image is simply thresholded at this level to give inference 
     % at the p<0.05 (corrected) level."
-    
-%     nperms = 1e4;
-%     M = zeros(1,length(nullnames));
-%     T = sourceant.pow(gridall==1);
-%     for n = 1:nperms
-%         clusternull2 = zeros(size(gridall));
-%         clusternull2(gridall==1) = T(randperm(nnz(gridall)));
-% 
-%         img = reshape(clusternull2,sourcemodel.dim);
-% 
-%         tfce = matlab_tfce_transform(img,H,E,26,dh); % C=26 default setting
-%         tfce = sort(tfce(:),'descend');
-%         M(n) = max(tfce(:));
-%         if mod(n,100)==0
-%             clc
-%             fprintf('Done %.0f perc.\n',n/nperms*1e2)
-%         end
-%     end
-%     M = sort(M,'descend');
-%     thresh = M(round(0.05*nperms)); %mu=0.2% thresh=796.9783
-    
-    
+ 
     img = reshape(sourceant.pow,sourcemodel.dim);
 
     tfce= matlab_tfce_transform(img,H,E,26,dh); % C=26 default setting

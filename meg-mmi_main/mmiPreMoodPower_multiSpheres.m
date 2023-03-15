@@ -1,24 +1,21 @@
 function mmiPreMoodPower_multiSpheres(data_name,roiopt,gridres,freqband,mu)
-% Created August 3 2020: mmi_grid_prep_Power with new preprocessing
-% roiopt = 'grid' mni grid
-% gridres = grid resolution in mm
-% Try with 4X weights normalization next
-
+% Lucrezia Liuzzi, last updated 2021/03/15
+% 
+% Calculates MEG oscillatory power in 3s windows before mood rating with
+% local spheres beamformer.
+% Saves oscillatory power per trial and corresponding mood model parameters
+% as .mat file
+% 
+% mmiPreMoodPower_multiSpheres(data_name,roiopt,gridres,freqband,mu)
+% data_name = name of dataset (.ds)
+% roiopt    = 'grid' beamformer on mni grid, 'sens' sensor level
+% gridres   = grid resolution in mm (for beamformer)
+% freqband  = frequency band [low_f, high_f]
+% mu        = beamformer regularization parameter, e.g. mu=0.05 (fraction of maximum singular value of covariance)
+% 
+% Warning: data path and output directory are hard-coded!
 
 %% Co-register MRI from fiducial positions
-
-% LTA model latent variables:
-% EC: Expectation of certain value
-% EG: Expectation during gabling
-% Ediff: Drift rate
-% LTA: Long term average with gamma:   1/t * sum_i=1 ^t(V(i)^gamma),   cumsum(LTA.OutcomeAmount^gamma)./(1:ntrials)'
-% V_i^gamma = outcome of trial i
-% new_p = subjective winning probability
-% RPE = Reward prediction error
-% LTA_sum  = sum(LTA)
-% RPE_sum = sum(RPE)
-% log_like
-% mood_log_like
 
 sub = data_name(5:9);
 data_path = ['/data/MBDU/MEG_MMI3/data/bids/sub-',sub,'/meg/'];
@@ -73,6 +70,7 @@ for iiF  = 3:7 % E,R and M from LTA model
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+%% Sensor Level
 if strcmp(roiopt,'sens')
     
     
@@ -149,9 +147,9 @@ else
         
         lfo = lf*v(:,jj); % Lead field with selected orientation
         
-        % depth correct
+        % no depth correction as we later divide by noise
         %     w = Cr\lfo / sqrt(lfo'/(Cr^2)*lfo) ;
-        w = Cr\lfo / (lfo'/Cr*lfo) ;
+        w = Cr\lfo / (lfo'/Cr*lfo) ; % weights
         W{ii} = w;
         pp  = zeros(ntrials,1);
         for tt = 1:ntrials
@@ -190,34 +188,34 @@ else
     
 end
 
-%%
-% W = cell2mat(W); % plkot the weights
-Pgrid = zeros(size(grid.inside));
-Pgrid(grid.inside) =  mean(P,2);
-sourceant.pow = Pgrid;
-sourceant.dim = [32 39 34]; % dimension of template
-sourceant.inside = grid.inside;
-sourceant.pos = grid.pos;
-cfg = [];
-cfg.parameter = 'pow';
-sourceout_Int  = ft_sourceinterpolate(cfg, sourceant , mri);
-sourceout_Int.pow(~sourceout_Int.inside) = 0;
-sourceout_Int.coordsys = 'ctf';
-
-
-crang = [];
-cfg = [];
-cfg.method        = 'slice'; %'ortho'
-if max(sourceout_Int.pow(:)) > -min(sourceout_Int.pow(:))
-    cfg.location   = 'max';
-else
-    cfg.location   = 'min';
-end
-cfg.funparameter = 'pow';
-cfg.maskparameter = 'pow';
-cfg.funcolormap  = 'auto';
-cfg.funcolorlim   = crang;
-cfg.opacitylim = crang;
-% cfg.atlas = '~/fieldtrip-20190812/template/atlas/aal/ROI_MNI_V4.nii';
-ft_sourceplot(cfg, sourceout_Int);
-title(data_name)
+%% Plot options
+% 
+% Pgrid = zeros(size(grid.inside));
+% Pgrid(grid.inside) =  mean(P,2);
+% sourceant.pow = Pgrid;
+% sourceant.dim = [32 39 34]; % dimension of template
+% sourceant.inside = grid.inside;
+% sourceant.pos = grid.pos;
+% cfg = [];
+% cfg.parameter = 'pow';
+% sourceout_Int  = ft_sourceinterpolate(cfg, sourceant , mri);
+% sourceout_Int.pow(~sourceout_Int.inside) = 0;
+% sourceout_Int.coordsys = 'ctf';
+% 
+% 
+% crang = [];
+% cfg = [];
+% cfg.method        = 'slice'; %'ortho'
+% if max(sourceout_Int.pow(:)) > -min(sourceout_Int.pow(:))
+%     cfg.location   = 'max';
+% else
+%     cfg.location   = 'min';
+% end
+% cfg.funparameter = 'pow';
+% cfg.maskparameter = 'pow';
+% cfg.funcolormap  = 'auto';
+% cfg.funcolorlim   = crang;
+% cfg.opacitylim = crang;
+% % cfg.atlas = '~/fieldtrip-20190812/template/atlas/aal/ROI_MNI_V4.nii';
+% ft_sourceplot(cfg, sourceout_Int);
+% title(data_name)

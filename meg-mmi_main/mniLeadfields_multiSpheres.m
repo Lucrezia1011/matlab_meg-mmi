@@ -1,54 +1,60 @@
 function grid = mniLeadfields_multiSpheres(data_name,processing_folder,gridres,mri)
-% mniLeadfields(data_name,processing_folder,gridres,mri)
+% Calculate lead fields with fieldtrip with local spheres approximation on 
+% regularly spaced MNI grid warped to individual anatomy 
+% 
+% grid = mniLeadfields_multiSpheres(data_name,processing_folder,gridres,mri)
+% data_name          = dataset name (.ds)
+% processing_folder  = folder for data derivatives
+% gridres            = beamformer grid resolution in mm
+% mri                = co-registered mri
 
 leadfield_name =sprintf( '%s/leadfields_multiSpheres_%.0fmm.mat',processing_folder,gridres);
-% if ~exist(leadfield_name,'file')
+if ~exist(leadfield_name,'file')
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %% Segment MRI
     sens = ft_read_sens(data_name,'senstype','meg');
     if ~exist([processing_folder,'/headmodel_multiSpheres.mat'],'file')
         cfg = [];
         cfg.output  = 'brain';
-        segmentmri = ft_volumesegment(cfg,mri);        
-
+        segmentmri = ft_volumesegment(cfg,mri);
+        
         segmentmri.anatomy = mri.anatomy;
-        % Plot mri and brain volume
+        
+        % Plot mri and brain volume for debugging
         cfg = [];
         cfg.anaparameter = 'anatomy';
         cfg.funparameter = 'brain';
         cfg.location = [0 0 60];
         ft_sourceplot(cfg, segmentmri)
         
-%         % no ref sensors
-%         grad = sens;
-%         sensgrad= strcmp(sens.chantype,'meggrad');
-%         grad.chanori(~sensgrad,:) = [];
-%         grad.chanpos(~sensgrad,:) = [];
-%         grad.chantype(~sensgrad) = [];
-%         grad.chanunit(~sensgrad) = [];
-%         grad.label(~sensgrad) = [];
-%         grad.tra(~sensgrad,:) = [];
-
-       cfg             = [];
-       cfg.tissue      = {'brain'};
-       cfg.numvertices = [ 2400];
-       bnd    = ft_prepare_mesh(cfg,segmentmri);   
-       
-       
-        figure(2)
-        cfg = [];
+        %         % no ref sensors
+        %         grad = sens;
+        %         sensgrad= strcmp(sens.chantype,'meggrad');
+        %         grad.chanori(~sensgrad,:) = [];
+        %         grad.chanpos(~sensgrad,:) = [];
+        %         grad.chantype(~sensgrad) = [];
+        %         grad.chanunit(~sensgrad) = [];
+        %         grad.label(~sensgrad) = [];
+        %         grad.tra(~sensgrad,:) = [];
+        
+%         cfg             = [];
+%         cfg.tissue      = {'brain'};
+%         cfg.numvertices = [2400];
+%         bnd    = ft_prepare_mesh(cfg,segmentmri);
+        
+                cfg = [];
         cfg.method = 'localspheres';%'singleshell';
         cfg.grad            = sens;
         cfg.numvertices =  6000; % increase number of verticies from default 3000
-%         cfg.radius  = 150;  % 85mm default, 4 spikes at top, using 70mm made it worse
+        %         cfg.radius  = 150;  % 85mm default, 4 spikes at top, using 70mm made it worse
         cfg.feedback = 'no';
         vol = ft_prepare_headmodel(cfg, segmentmri);
-        
+%         
 %         figure
 %         ft_plot_mesh(bnd,'unit','cm','facealpha',.5); hold on
 %         ft_plot_sens(sens, 'unit', 'cm'); hold on;
 %         ft_plot_headmodel(vol, 'facecolor', 'cortex','edgecolor',[0,0,0], 'grad', sens, 'unit', 'cm','facealpha','0.5');
-%        title(['radius ',num2str(cfg.radius),'mm'])
+%         title(['radius ',num2str(cfg.radius),'mm'])
        
        
 %         figure; cla
@@ -67,9 +73,8 @@ leadfield_name =sprintf( '%s/leadfields_multiSpheres_%.0fmm.mat',processing_fold
     
    
     %% MNI template brain
-    %     gridres = 5; % resolution of beamformer grid in mm
     
-    % Load fieldtrip 10mm MNI grid
+    % Load fieldtrip MNI grid
     ftpath   = '/home/liuzzil2/fieldtrip-20190812/';
     load(fullfile(ftpath, ['template/sourcemodel/standard_sourcemodel3d',num2str(gridres),'mm']));
     template_grid = sourcemodel;
@@ -97,7 +102,7 @@ leadfield_name =sprintf( '%s/leadfields_multiSpheres_%.0fmm.mat',processing_fold
     cfg.channel         = {'MEG'};
 %     cfg.sourcemodel.pos = locs; %sourcemodel.pos
 %     cfg.sourcemodel.unit   = 'm';
-    cfg.sourcemodel    = sourcemodel; % maybe this will work?
+    cfg.sourcemodel    = sourcemodel; % Thia works
     cfg.siunits         = true;
     cfg.normalize = 'no'; % To normalize power estimate (center of the head bias for beamformer and superficial bias for mne)
     [grid] = ft_prepare_leadfield(cfg);
@@ -121,6 +126,6 @@ leadfield_name =sprintf( '%s/leadfields_multiSpheres_%.0fmm.mat',processing_fold
     %%
     
     save(leadfield_name,'grid');
-% else
-%     load(leadfield_name);
-% end
+else
+    load(leadfield_name);
+end

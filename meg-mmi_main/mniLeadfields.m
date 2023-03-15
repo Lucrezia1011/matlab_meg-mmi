@@ -1,5 +1,12 @@
 function grid = mniLeadfields(data_name,processing_folder,gridres,mri)
-% mniLeadfields(data_name,processing_folder,gridres,mri)
+% Calculate lead fields with fieldtrip from Nolte's single shell    
+% approximation on regularly spaced MNI grid warped to individual anatomy 
+% 
+% grid = mniLeadfields(data_name,processing_folder,gridres,mri)
+% data_name          = dataset name (.ds)
+% processing_folder  = folder for data derivatives
+% gridres            = beamformer grid resolution in mm
+% mri                = co-registered mri
 
 leadfield_name =sprintf( '%s/leadfields_%.0fmm.mat',processing_folder,gridres);
 if ~exist(leadfield_name,'file')
@@ -24,9 +31,8 @@ if ~exist(leadfield_name,'file')
     
    
     %% MNI template brain
-    %     gridres = 5; % resolution of beamformer grid in mm
     
-    % Load fieldtrip 10mm MNI grid
+    % Load fieldtrip MNI grid
     ftpath   = '/home/liuzzil2/fieldtrip-20190812/';
     load(fullfile(ftpath, ['template/sourcemodel/standard_sourcemodel3d',num2str(gridres),'mm']));
     template_grid = sourcemodel;

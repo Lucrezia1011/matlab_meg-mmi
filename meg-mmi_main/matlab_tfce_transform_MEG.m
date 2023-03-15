@@ -1,12 +1,23 @@
 function [tfced] = matlab_tfce_transform_MEG(T,H,E,dh,neighbours)
-%MATLAB_TFCE_TRANSFORM performs threshold free cluster enhancement
-%   [tfced] = matlab_tfce_transform(img,H,E,C,ndh) performs threshold
-%   free cluster enhancement on 'img' as per Smith & Nichols (2009).
-%   -- img the 3D image to be transformed
+%MATLAB_TFCE_TRANSFORM_MEG performs threshold free cluster enhancement 
+%   [tfced] = matlab_tfce_transform_MEG(img,H,E,C,dh,neighbours) performs threshold
+%   free cluster enhancement on a free spatial arrangement as per Smith & Nichols (2009).
+%   -- T the 3D image to be transformed
 %   -- H height exponent,   H = 2
 %   -- E extent exponent,   E = 0.5
-%   -- A adjecency matrix of neighbouring channels
 %   -- dh size of steps for cluster formation   dh = 0.1
+%   -- neighbours, structure with information of channel neighbours
+%       cfg_neighb          = [];
+%       cfg_neighb.method   = 'template';
+%       cfg_neighb.template = 'CTF275_neighb.mat';
+%       cfg_neighb.channel  = channels;
+%       neighbours          = ft_prepare_neighbours(cfg_neighb, hdr);
+%       channels = {neighbours.label};
+%       for n = 1:length(neighbours)
+%           [~,~,iB] = intersect(neighbours(n).neighblabel, channels );
+%           neighbours(n).neighbnum =iB;
+%       end
+% Based on grid TFCE algorithm:
 % https://github.com/markallenthornton/MatlabTFCE/blob/master/matlab_tfce_transform.m
 
 % set cluster thresholds
@@ -19,18 +30,6 @@ nvox = length(T(:));
 
 % find connected components
 vals = zeros(nvox,1);
-
-% cfg_neighb        = [];
-% cfg_neighb.method = 'template';%'distance';
-% cfg_neighb.template = 'CTF275_neighb.mat';
-% cfg_neighb.channel = channels;
-% neighbours        = ft_prepare_neighbours(cfg_neighb, hdr);
-
-% channels = {neighbours.label};
-% for n = 1:length(neighbours)
-%     [~,~,iB] = intersect(neighbours(n).neighblabel, channels );
-%     neighbours(n).neighbnum =iB;
-% end
 
 for h = 1:ndh
     
